@@ -1,0 +1,9 @@
+[project]
+name = "pro-hr"
+version = "0.1.0"
+description = "PRO HR Autonomous Multi-Agent Recruitment Ecosystem"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

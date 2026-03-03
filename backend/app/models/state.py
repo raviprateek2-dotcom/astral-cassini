@@ -1,0 +1,189 @@
+"""Shared state schema for the recruitment pipeline.
+
+All 7 agents read from and write to this RecruitmentState.
+It flows through the LangGraph as the central data structure.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from enum import Enum
+from typing import Annotated, Any
+
+from pydantic import BaseModel, Field
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class PipelineStage(str, Enum):
+    """Current stage of the recruitment pipeline."""
+    INTAKE = "intake"
+    JD_DRAFTING = "jd_drafting"
+    JD_REVIEW = "jd_review"
+    SOURCING = "sourcing"
+    SCREENING = "screening"
+    SHORTLIST_REVIEW = "shortlist_review"
+    SCHEDULING = "scheduling"
+    INTERVIEWING = "interviewing"
+    DECISION = "decision"
+    HIRE_REVIEW = "hire_review"
+    COMPLETED = "completed"
+
+
+class ApprovalStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+# ---------------------------------------------------------------------------
+# Sub-models
+# ---------------------------------------------------------------------------
+
+class CandidateProfile(BaseModel):
+    """A candidate found by The Scout (Agent 3)."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    email: str = ""
+    phone: str = ""
+    skills: list[str] = []
+    experience_years: int = 0
+    education: str = ""
+    resume_text: str = ""
+    source: str = "vector_search"
+    relevance_score: float = 0.0
+
+
+class ScoredCandidate(BaseModel):
+    """A candidate scored by The Screener (Agent 4)."""
+    candidate_id: str
+    candidate_name: str
+    overall_score: float = 0.0  # 0-100
+    skills_match: float = 0.0
+    experience_match: float = 0.0
+    education_match: float = 0.0
+    cultural_fit: float = 0.0
+    gaps: list[str] = []
+    strengths: list[str] = []
+    reasoning: str = ""
+
+
+class Interview(BaseModel):
+    """An interview scheduled by The Coordinator (Agent 5)."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    candidate_id: str
+    candidate_name: str
+    interview_type: str = "technical"  # technical, behavioral, cultural
+    scheduled_time: str = ""
+    duration_minutes: int = 60
+    interviewers: list[str] = []
+    meeting_link: str = ""
+    status: str = "scheduled"
+
+
+class Assessment(BaseModel):
+    """Competency assessment from The Interviewer (Agent 6)."""
+    candidate_id: str
+    candidate_name: str
+    technical_score: float = 0.0   # 0-10
+    communication_score: float = 0.0
+    problem_solving_score: float = 0.0
+    cultural_fit_score: float = 0.0
+    overall_score: float = 0.0
+    key_observations: list[str] = []
+    concerns: list[str] = []
+    transcript_summary: str = ""
+
+
+class Recommendation(BaseModel):
+    """Final recommendation from The Decider (Agent 7)."""
+    candidate_id: str
+    candidate_name: str
+    decision: str = "no_hire"  # hire, no_hire, maybe
+    confidence: float = 0.0  # 0-100
+    screening_weight: float = 0.0
+    interview_weight: float = 0.0
+    overall_weighted_score: float = 0.0
+    reasoning: str = ""
+    risk_factors: list[str] = []
+
+
+class AuditEntry(BaseModel):
+    """An entry in the audit trail."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    agent: str
+    action: str
+    details: str = ""
+    stage: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Reducer helpers for LangGraph
+# ---------------------------------------------------------------------------
+
+def _merge_lists(existing: list, new: list) -> list:
+    """Append new items to existing list (LangGraph reducer)."""
+    return existing + new
+
+
+def _replace_value(existing: Any, new: Any) -> Any:
+    """Replace the existing value entirely (LangGraph reducer)."""
+    return new
+
+
+# ---------------------------------------------------------------------------
+# Main Recruitment State (TypedDict for LangGraph)
+# ---------------------------------------------------------------------------
+
+from typing import TypedDict
+
+
+class RecruitmentState(TypedDict, total=False):
+    """Shared state flowing through the entire LangGraph pipeline.
+
+    All agents read/write to this state. Reducers in the graph
+    handle how updates are merged.
+    """
+
+    # --- Job Requisition (input) ---
+    job_id: str
+    job_title: str
+    department: str
+    requirements: list[str]
+    preferred_qualifications: list[str]
+    location: str
+    salary_range: str
+
+    # --- Agent 1: JD Architect output ---
+    job_description: str
+
+    # --- Agent 2: Liaison HITL gates ---
+    jd_approval: str            # pending | approved | rejected
+    shortlist_approval: str     # pending | approved | rejected
+    hire_approval: str          # pending | approved | rejected
+    human_feedback: str         # free-text feedback from reviewer
+
+    # --- Agent 3: Scout output ---
+    candidates: Annotated[list[dict], _merge_lists]      # list of CandidateProfile dicts
+
+    # --- Agent 4: Screener output ---
+    scored_candidates: Annotated[list[dict], _merge_lists]   # list of ScoredCandidate dicts
+
+    # --- Agent 5: Coordinator output ---
+    scheduled_interviews: Annotated[list[dict], _merge_lists]  # list of Interview dicts
+
+    # --- Agent 6: Interviewer output ---
+    interview_assessments: Annotated[list[dict], _merge_lists]  # list of Assessment dicts
+    interview_transcripts: Annotated[list[str], _merge_lists]   # raw transcripts for processing
+
+    # --- Agent 7: Decider output ---
+    final_recommendations: Annotated[list[dict], _merge_lists]  # list of Recommendation dicts
+
+    # --- Pipeline metadata ---
+    current_stage: Annotated[str, _replace_value]
+    audit_log: Annotated[list[dict], _merge_lists]       # list of AuditEntry dicts
+    error: Annotated[str, _replace_value]                  # error message if any agent fails

@@ -1,0 +1,180 @@
+[
+    {
+        "id": "mock-001",
+        "name": "Priya Sharma",
+        "email": "priya.sharma@email.com",
+        "phone": "+91 98765 43210",
+        "skills": [
+            "Python",
+            "Machine Learning",
+            "TensorFlow",
+            "SQL",
+            "Docker",
+            "NLP"
+        ],
+        "experience_years": 5,
+        "education": "M.Tech in Computer Science, IIT Delhi",
+        "current_role": "Senior ML Engineer at TechCo",
+        "resume_text": "Experienced ML engineer with 5 years building production ML systems. Led a team of 3 at a Series B startup. Published 2 papers on NLP at ACL. Strong in Python, TensorFlow, and cloud deployments. Built recommendation engine serving 2M+ users."
+    },
+    {
+        "id": "mock-002",
+        "name": "Arjun Mehta",
+        "email": "arjun.mehta@email.com",
+        "phone": "+91 87654 32109",
+        "skills": [
+            "Java",
+            "Spring Boot",
+            "Microservices",
+            "AWS",
+            "PostgreSQL",
+            "Kafka"
+        ],
+        "experience_years": 7,
+        "education": "B.Tech in IT, NIT Trichy",
+        "current_role": "Staff Engineer at ScaleCorp",
+        "resume_text": "Senior backend developer specializing in distributed systems. 7 years at top tech companies. Expert in Java, Spring Boot, and AWS infrastructure. Led migration of monolith to microservices architecture. Managed 99.99% uptime SLA."
+    },
+    {
+        "id": "mock-003",
+        "name": "Sneha Patel",
+        "email": "sneha.patel@email.com",
+        "phone": "+91 76543 21098",
+        "skills": [
+            "React",
+            "TypeScript",
+            "Node.js",
+            "GraphQL",
+            "Figma",
+            "Next.js"
+        ],
+        "experience_years": 4,
+        "education": "B.E. in Computer Engineering, BITS Pilani",
+        "current_role": "Frontend Lead at DesignTech",
+        "resume_text": "Full-stack developer with strong frontend focus. 4 years building React applications. Designed and shipped 3 customer-facing products. Excellent at bridging design and engineering. Improved Core Web Vitals by 40%."
+    },
+    {
+        "id": "mock-004",
+        "name": "Rahul Verma",
+        "email": "rahul.verma@email.com",
+        "phone": "+91 65432 10987",
+        "skills": [
+            "Python",
+            "FastAPI",
+            "LangChain",
+            "RAG",
+            "Vector DBs",
+            "OpenAI"
+        ],
+        "experience_years": 3,
+        "education": "M.S. in AI, Carnegie Mellon University",
+        "current_role": "AI Engineer at AgenticAI",
+        "resume_text": "AI/ML engineer specializing in LLM applications. Built RAG pipelines serving 10K+ queries/day. Strong in Python, LangChain, and vector databases. Former research intern at Google DeepMind. Contributed to open-source LangGraph ecosystem."
+    },
+    {
+        "id": "mock-005",
+        "name": "Ananya Gupta",
+        "email": "ananya.gupta@email.com",
+        "phone": "+91 54321 09876",
+        "skills": [
+            "Data Science",
+            "Python",
+            "Spark",
+            "Tableau",
+            "Statistics",
+            "R"
+        ],
+        "experience_years": 6,
+        "education": "Ph.D. in Statistics, ISI Kolkata",
+        "current_role": "Principal Data Scientist at AnalyticsCo",
+        "resume_text": "Data scientist with PhD in statistics. 6 years in analytics and ML. Expert in experimental design, causal inference, and large-scale data processing with Spark. Mentored 5 junior data scientists."
+    },
+    {
+        "id": "mock-006",
+        "name": "Vikram Singh",
+        "email": "vikram.singh@email.com",
+        "phone": "+91 43210 98765",
+        "skills": [
+            "Go",
+            "Kubernetes",
+            "Terraform",
+            "CI/CD",
+            "Linux",
+            "Prometheus"
+        ],
+        "experience_years": 8,
+        "education": "B.Tech in CSE, IIT Bombay",
+        "current_role": "DevOps Architect at CloudNative Inc",
+        "resume_text": "DevOps architect with 8 years experience. Designed CI/CD pipelines for 50+ microservices. Expert in Kubernetes, Terraform, and cloud-native architectures. Reduced deployment time by 70% through automation."
+    },
+    {
+        "id": "mock-007",
+        "name": "Meera Krishnan",
+        "email": "meera.krishnan@email.com",
+        "phone": "+91 32109 87654",
+        "skills": [
+            "Product Management",
+            "Agile",
+            "SQL",
+            "Data Analysis",
+            "Jira",
+            "Python"
+        ],
+        "experience_years": 5,
+        "education": "MBA, IIM Ahmedabad + B.Tech, NIT Warangal",
+        "current_role": "Senior Product Manager at FinTech Startup",
+        "resume_text": "Technical product manager with engineering background. 5 years driving product strategy at fast-growing startups. Launched 4 products with combined ARR of $2M. Strong in data-driven decision making and cross-functional leadership."
+    },
+    {
+        "id": "mock-008",
+        "name": "Aditya Rao",
+        "email": "aditya.rao@email.com",
+        "phone": "+91 21098 76543",
+        "skills": [
+            "Python",
+            "Computer Vision",
+            "PyTorch",
+            "C++",
+            "CUDA",
+            "OpenCV"
+        ],
+        "experience_years": 4,
+        "education": "M.S. in Computer Vision, ETH Zurich",
+        "current_role": "Computer Vision Engineer at AutoDrive",
+        "resume_text": "Computer vision engineer specializing in autonomous driving. 4 years building real-time perception systems. Expert in PyTorch, CUDA optimization, and 3D point cloud processing. Published at CVPR and ECCV."
+    },
+    {
+        "id": "mock-009",
+        "name": "Kavya Nair",
+        "email": "kavya.nair@email.com",
+        "phone": "+91 10987 65432",
+        "skills": [
+            "Cybersecurity",
+            "Python",
+            "Penetration Testing",
+            "Cloud Security",
+            "SIEM"
+        ],
+        "experience_years": 6,
+        "education": "M.Tech in Information Security, IIIT Hyderabad",
+        "current_role": "Security Lead at SecureTech",
+        "resume_text": "Cybersecurity professional with 6 years in offensive and defensive security. Led security assessments for Fortune 500 clients. Expert in penetration testing, cloud security, and incident response. OSCP and CISSP certified."
+    },
+    {
+        "id": "mock-010",
+        "name": "Rohan Das",
+        "email": "rohan.das@email.com",
+        "phone": "+91 09876 54321",
+        "skills": [
+            "Rust",
+            "Systems Programming",
+            "WebAssembly",
+            "Linux",
+            "Networking"
+        ],
+        "experience_years": 3,
+        "education": "B.Tech in CSE, IIIT Bangalore",
+        "current_role": "Systems Engineer at InfraLabs",
+        "resume_text": "Systems programmer passionate about performance and reliability. 3 years building low-latency network systems in Rust. Contributed to open-source Rust ecosystem. Built a custom TCP/IP stack for IoT devices."
+    }
+]
