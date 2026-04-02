@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, User
+from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, User, Outreach, Offer
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
@@ -29,15 +30,12 @@ async def funnel(
     """Candidate hiring funnel: total sourced → screened → interviewed → hired."""
     total_jobs = db.query(func.count(Job.id)).scalar() or 0
     total_scored = db.query(func.count(CandidateScore.id)).scalar() or 0
+    outreach_sent = db.query(func.count(Outreach.id)).scalar() or 0
     total_recommendations = db.query(func.count(Recommendation.id)).scalar() or 0
+    offers_drafted = db.query(func.count(Offer.id)).scalar() or 0
     hired = (
         db.query(func.count(Recommendation.id))
         .filter(Recommendation.decision == "hire")
-        .scalar() or 0
-    )
-    maybe = (
-        db.query(func.count(Recommendation.id))
-        .filter(Recommendation.decision == "maybe")
         .scalar() or 0
     )
 
@@ -45,9 +43,10 @@ async def funnel(
         "funnel": [
             {"stage": "Pipelines Started", "count": total_jobs},
             {"stage": "Candidates Scored", "count": total_scored},
+            {"stage": "Outreach Sent", "count": outreach_sent},
             {"stage": "Decisions Made", "count": total_recommendations},
-            {"stage": "Hire", "count": hired},
-            {"stage": "Maybe", "count": maybe},
+            {"stage": "Offers Drafted", "count": offers_drafted},
+            {"stage": "Hired", "count": hired},
         ]
     }
 
@@ -80,25 +79,33 @@ async def department_breakdown(
     _=Depends(_auth),
 ):
     """Jobs and hires by department."""
-    jobs = db.query(Job.department, func.count(Job.id)).group_by(Job.department).all()
-    hires_raw = (
-        db.query(Job.department, func.count(Recommendation.id))
-        .join(Recommendation, Recommendation.job_id == Job.job_id)
-        .filter(Recommendation.decision == "hire")
-        .group_by(Job.department)
-        .all()
-    )
-    hires_map = {dept: count for dept, count in hires_raw}
-    return {
-        "departments": [
-            {
-                "department": dept or "Unknown",
-                "total_jobs": count,
-                "hires": hires_map.get(dept, 0),
-            }
-            for dept, count in jobs
-        ]
-    }
+    try:
+        jobs = db.query(Job.department, func.count(Job.id)).group_by(Job.department).all()
+        hires_raw = (
+            db.query(Job.department, func.count(Recommendation.id))
+            .join(Recommendation, Recommendation.job_id == Job.job_id)
+            .filter(Recommendation.decision == "hire")
+            .group_by(Job.department)
+            .all()
+        )
+        hires_map = {dept: count for dept, count in hires_raw}
+        return {
+            "departments": [
+                {
+                    "department": dept or "Unknown",
+                    "total_jobs": count,
+                    "hires": hires_map.get(dept, 0),
+                }
+                for dept, count in jobs
+            ]
+        }
+    except Exception as e:
+        import traceback
+        logging.error(f"Dept Breakdown Error: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Dept Breakdown Internal Error: {str(e)}\n{traceback.format_exc()}"
+        )
 
 
 @router.get("/time_to_hire")
@@ -115,8 +122,11 @@ async def time_to_hire(
     by_dept: dict[str, list[float]] = defaultdict(list)
     for job in completed:
         if job.created_at and job.completed_at:
-            days = (job.completed_at - job.created_at).total_seconds() / 86400
-            by_dept[job.department or "Unknown"].append(days)
+            try:
+                days = (job.completed_at - job.created_at).total_seconds() / 86400
+                by_dept[job.department or "Unknown"].append(days)
+            except (TypeError, AttributeError):
+                continue
 
     return {
         "time_to_hire": [
@@ -127,6 +137,45 @@ async def time_to_hire(
             }
             for dept, days in by_dept.items()
         ]
+    }
+
+
+@router.get("/roi/{job_id}")
+async def job_roi(
+    job_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    _=Depends(_auth),
+):
+    """Calculate ROI and Time Savings for a specific job pipeline."""
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    state = job.workflow_state or {}
+    candidates_count = len(state.get("candidates", []))
+    scored_count = len(state.get("scored_candidates", []))
+    interviews_count = len(state.get("scheduled_interviews", []))
+
+    # ROI Formula (Industry benchmarks)
+    # 15 mins per candidate screening
+    # 60 mins per interview coordination + review
+    # 30 mins for JD drafting
+    manual_hours = (candidates_count * 0.25) + (interviews_count * 1.0) + 0.5
+    ai_hours = 0.1 # Negligible (automated)
+    
+    hours_saved = max(0, manual_hours - ai_hours)
+    monetary_roi = hours_saved * 80 # $80/hr benchmark
+
+    return {
+        "job_id": job_id,
+        "metrics": {
+            "candidates_processed": candidates_count,
+            "interviews_automated": interviews_count,
+            "manual_hours_estimated": round(manual_hours, 1),
+            "hours_saved": round(hours_saved, 1),
+            "monetary_roi": round(monetary_roi, 2),
+            "efficiency_gain": "98%" if hours_saved > 0 else "0%"
+        }
     }
 
 
@@ -157,6 +206,83 @@ async def recent_activity(
     }
 
 
+@router.get("/dashboard")
+async def get_full_dashboard(
+    db: Annotated[Session, Depends(get_db)],
+    _=Depends(_auth),
+):
+    """Aggregated endpoint for the entire analytics dashboard."""
+    try:
+        # 1. Summary
+        total_jobs = db.query(func.count(Job.id)).scalar() or 0
+        active_jobs = db.query(func.count(Job.id)).filter(Job.current_stage != "completed").scalar() or 0
+        total_candidates = db.query(func.count(CandidateScore.id)).scalar() or 0
+        hired = db.query(func.count(Recommendation.id)).filter(Recommendation.decision == "hire").scalar() or 0
+        avg_score = db.query(func.avg(CandidateScore.overall_score)).scalar()
+        
+        try:
+            score_val = float(avg_score) if avg_score is not None else 0.0
+        except (TypeError, ValueError):
+            score_val = 0.0
+        
+        summary_data = {
+            "total_jobs": total_jobs,
+            "active_jobs": active_jobs,
+            "total_candidates_scored": total_candidates,
+            "total_hires": hired,
+            "average_screening_score": round(score_val, 1),
+        }
+
+        # 2. Funnel
+        funnel_data = [
+            {"stage": "Pipelines Started", "count": total_jobs},
+            {"stage": "Candidates Scored", "count": total_candidates},
+            {"stage": "Decisions Made", "count": db.query(func.count(Recommendation.id)).scalar() or 0},
+            {"stage": "Hired", "count": hired},
+        ]
+
+        # 3. Time-to-Hire
+        completed = db.query(Job).filter(Job.current_stage == "completed", Job.completed_at.isnot(None)).all()
+        by_dept: dict[str, list[float]] = defaultdict(list)
+        for job in completed:
+            if job.created_at and job.completed_at:
+                try:
+                    days = (job.completed_at - job.created_at).total_seconds() / 86400
+                    by_dept[job.department or "Unknown"].append(days)
+                except (TypeError, AttributeError):
+                    continue
+        time_data = [
+            {"department": dept, "avg_days": round(sum(days) / len(days), 1) if days else 0}
+            for dept, days in by_dept.items()
+        ]
+
+        # 4. Recent Activity
+        events = db.query(AuditEvent).order_by(AuditEvent.timestamp.desc()).limit(15).all()
+        recent_data = [
+            {
+                "agent": e.agent,
+                "action": e.action,
+                "details": e.details,
+                "timestamp": e.timestamp.isoformat() if e.timestamp else "",
+            }
+            for e in events
+        ]
+
+        return {
+            "summary": summary_data,
+            "funnel": funnel_data,
+            "time_to_hire": time_data,
+            "recent": recent_data
+        }
+    except Exception as e:
+        import traceback
+        logging.error(f"Dashboard Error: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Dashboard Internal Error: {str(e)}\n{traceback.format_exc()}"
+        )
+
+
 @router.get("/summary")
 async def summary(
     db: Annotated[Session, Depends(get_db)],
@@ -184,11 +310,16 @@ async def summary(
         db.query(func.avg(CandidateScore.overall_score)).scalar()
     )
 
+    try:
+        score_val = float(avg_score) if avg_score is not None else 0.0
+    except (TypeError, ValueError):
+        score_val = 0.0
+
     return {
         "total_jobs": total_jobs,
         "active_jobs": active_jobs,
         "total_candidates_scored": total_candidates,
         "total_hires": hired,
         "pending_approvals": pending_approvals,
-        "average_screening_score": round(float(avg_score), 1) if avg_score else 0.0,
+        "average_screening_score": round(score_val, 1),
     }

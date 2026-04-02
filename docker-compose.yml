@@ -1,0 +1,38 @@
+# Docker Compose for PRO HR Ecosystem
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prohr-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+    env_file:
+      - ./backend/.env
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: prohr-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  backend_data:

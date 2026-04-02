@@ -64,7 +64,12 @@ def create_decider():
     )
 
     def decider_node(state: RecruitmentState) -> dict:
-        """Produce final hire/no-hire recommendations."""
+        """Evaluate all data to make final hiring recommendations."""
+        
+        # Skip if we are past the decision stage
+        current_stage = state.get("current_stage")
+        if current_stage and current_stage != PipelineStage.DECISION.value:
+            return {}
 
         scored_candidates = state.get("scored_candidates", [])
         assessments = state.get("interview_assessments", [])

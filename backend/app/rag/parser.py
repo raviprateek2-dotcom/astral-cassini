@@ -40,19 +40,18 @@ SECTION_PATTERNS = {
 }
 
 SKILLS_KEYWORDS = [
-    "python", "java", "javascript", "typescript", "go", "rust", "c\\+\\+", "c#",
-    "react", "next", "vue", "angular", "node", "fastapi", "django", "flask", "spring",
-    "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
-    "aws", "gcp", "azure", "kubernetes", "docker", "terraform", "ci/cd",
-    "machine learning", "deep learning", "tensorflow", "pytorch", "scikit",
-    "langchain", "langgraph", "openai", "llm", "rag", "chromadb", "pinecone",
-    "git", "linux", "agile", "scrum",
+    "python", "java", "javascript", "typescript", "go", "rust", "c++", "c#", "ruby", "php",
+    "react", "next", "vue", "angular", "node", "fastapi", "django", "flask", "spring", "express",
+    "sql", "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "cassandra", "dynamodb",
+    "aws", "gcp", "azure", "kubernetes", "docker", "terraform", "ci/cd", "jenkins", "github actions",
+    "machine learning", "deep learning", "tensorflow", "pytorch", "scikit", "nlp", "computer vision",
+    "langchain", "langgraph", "openai", "llm", "rag", "chromadb", "pinecone", "faiss", "milvus",
+    "git", "linux", "agile", "scrum", "devops", "cloud native", "microservices",
 ]
-
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[a-z]{2,}", re.I)
 PHONE_RE = re.compile(r"(\+?\d[\d\s\-().]{7,}\d)")
 NAME_RE = re.compile(r"^([A-Z][a-z]+ (?:[A-Z][a-z]+ )?[A-Z][a-z]+)")
-EXPERIENCE_YEARS_RE = re.compile(r"(\d+)\+?\s*(?:years?|yrs?)", re.I)
+EXPERIENCE_YEARS_RE = re.compile(r"(\d+)\+?\s*(?:years?|yrs?|yr)\b", re.I)
 
 # ---------------------------------------------------------------------------
 # Section-aware text splitter
@@ -100,7 +99,9 @@ def _extract_experience_years(text: str) -> int:
     """Extract claimed years of experience from resume text."""
     matches = EXPERIENCE_YEARS_RE.findall(text)
     if matches:
-        return max(int(m) for m in matches)
+        # Filter out unrealistic years (like historical dates 2020) by capping at 50
+        years = [int(m) for m in matches if int(m) < 50]
+        return max(years) if years else 0
     return 0
 
 

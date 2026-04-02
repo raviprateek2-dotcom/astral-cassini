@@ -20,11 +20,25 @@ export default function JobsPage() {
         location: "Remote",
         salary_range: "",
     });
+    const [jobs, setJobs] = useState<any[]>([]);
     const [reqInput, setReqInput] = useState("");
     const [prefInput, setPrefInput] = useState("");
 
     // WebSocket connection active only when we have a result.job_id
     const { connected, events, heartbeat, tokenStream } = useWebSocket(result?.job_id || null);
+
+    useEffect(() => {
+        loadJobs();
+    }, []);
+
+    async function loadJobs() {
+        try {
+            const data = await api.listJobs();
+            setJobs(data);
+        } catch (err) {
+            console.error("Failed to load jobs", err);
+        }
+    }
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -34,6 +48,7 @@ export default function JobsPage() {
             const data = await api.createJob(form);
             setResult(data);
             setShowForm(false);
+            loadJobs(); // Refresh the list
             toast.success("Job Requisition Initialized", {
                 description: "Agent 1 (JD Architect) has successfully drafted the requirement."
             });
@@ -276,6 +291,47 @@ export default function JobsPage() {
                             {displayJD}
                             {currentStage === "jd_drafting" && <span className="typing-cursor"></span>}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Existing Jobs List */}
+            {!result && (
+                <div className="stagger-3" style={{ marginTop: 40 }}>
+                    <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 20px" }}>
+                        Active Pipelines
+                    </h2>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {jobs.map((job) => (
+                            <div
+                                key={job.job_id}
+                                className="glass-card"
+                                style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    padding: "16px 20px",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease"
+                                }}
+                                onClick={() => setResult({ job_id: job.job_id, current_stage: job.current_stage })}
+                            >
+                                <div>
+                                    <p style={{ fontWeight: 600, margin: 0 }}>{job.job_title}</p>
+                                    <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", margin: "4px 0 0" }}>
+                                        {job.department} • {job.created_at.split('T')[0]}
+                                    </p>
+                                </div>
+                                <span className={`badge ${stageBadge(job.current_stage)}`}>
+                                    {job.current_stage}
+                                </span>
+                            </div>
+                        ))}
+                        {jobs.length === 0 && !loading && (
+                            <div className="glass-card" style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+                                <p>No active requisitions found. Create your first one above!</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

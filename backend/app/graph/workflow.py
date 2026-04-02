@@ -1,103 +1,74 @@
-"""Improved LangGraph Workflow — Full recruitment pipeline orchestration.
+"""Workflow engine for PRO HR.
 
-Key improvements over v1:
-1. SqliteSaver checkpointer — workflows survive server restarts
-2. Parallel candidate scoring via LangGraph's Send API
-3. Streaming-ready async graph execution
+Orchestrates 7 distinct agents using LangGraph to manage the
+end-to-end recruitment lifecycle from JD intake to Offer.
 """
 
 from __future__ import annotations
 
-import logging
-import sqlite3
+import json
 import uuid
+import logging
+import asyncio
 from datetime import datetime
-from typing import Annotated
+from typing import TypedDict, Annotated, Literal
 
-from langgraph.graph import StateGraph, END, START
+from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.types import Send
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
-from app.models.db_models import Job, CandidateScore, Interview, AuditEvent, Recommendation
 from app.models.state import RecruitmentState, PipelineStage
+from app.models.db_models import Job, AuditEvent
 from app.agents.jd_architect import create_jd_architect
-from app.agents.liaison import (
-    create_liaison,
-    check_jd_approval,
-    check_shortlist_approval,
-    check_hire_approval,
-)
+from app.agents.liaison import create_liaison
 from app.agents.scout import create_scout
-from app.agents.screener import create_screener_single   # NEW: scores ONE candidate
+from app.agents.screener import create_screener_single
 from app.agents.coordinator import create_coordinator
-from app.agents.interviewer import create_interviewer
-from app.agents.decider import create_decider
+from app.agents.outreach import create_outreach_agent
+from app.agents.response_tracker import create_response_tracker
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Persistent SqliteSaver checkpointer
-# ---------------------------------------------------------------------------
-
-def _get_checkpointer():
-    """Return a MemorySaver (SqliteSaver requires langgraph-checkpoint-sqlite)."""
-    try:
-        from langgraph.checkpoint.sqlite import SqliteSaver
-        import os
-        os.makedirs("data", exist_ok=True)
-        conn = sqlite3.connect("data/workflows.db", check_same_thread=False)
-        saver = SqliteSaver(conn)
-        logger.info("Using SqliteSaver — workflows will persist across restarts.")
-        return saver
-    except ImportError:
-        logger.warning("SqliteSaver not available, using MemorySaver (in-memory only).")
-        return MemorySaver()
-
 
 # ---------------------------------------------------------------------------
-# Parallel scoring dispatcher (LangGraph Send API)
+# Helper: Stage Checkers (Logical Gates)
 # ---------------------------------------------------------------------------
 
-def dispatch_scoring(state: RecruitmentState) -> list[Send]:
-    """Fan-out: send each candidate to the screener_single node in parallel."""
-    candidates = state.get("candidates", [])
-    if not candidates:
-        return []
+def check_jd_approval(state: RecruitmentState) -> Literal["approved", "rejected", "pending"]:
+    approval = state.get("jd_approval", "pending")
+    if approval == "approved":
+        return "approved"
+    elif approval == "rejected":
+        return "rejected"
+    return "pending"
 
-    return [
-        Send("screener_single", {
-            "candidate": candidate,
-            "job_description": state.get("job_description", ""),
-            "requirements": state.get("requirements", []),
-            "job_title": state.get("job_title", ""),
-        })
-        for candidate in candidates
-    ]
+
+def check_shortlist_approval(state: RecruitmentState) -> Literal["approved", "rejected", "pending"]:
+    approval = state.get("shortlist_approval", "pending")
+    if approval == "approved":
+        return "approved"
+    elif approval == "rejected":
+        return "rejected"
+    return "pending"
+
+
+def check_hire_approval(state: RecruitmentState) -> Literal["approved", "rejected", "pending"]:
+    approval = state.get("hire_approval", "pending")
+    if approval == "approved":
+        return "approved"
+    elif approval == "rejected":
+        return "rejected"
+    return "pending"
 
 
 def collect_scores(state: RecruitmentState) -> dict:
-    """Fan-in: merge all individual scored_candidates into state."""
-    # scored_candidates is already accumulated via the reducer (list append)
-    scored = state.get("scored_candidates", [])
-    # Sort by overall_score descending
-    scored_sorted = sorted(scored, key=lambda x: x.get("overall_score", 0), reverse=True)
+    """Consolidate scores from parallel screener nodes."""
+    return {"current_stage": PipelineStage.SHORTLIST_REVIEW.value}
 
-    audit_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "agent": "The Screener",
-        "action": "parallel_scoring_complete",
-        "details": f"Scored {len(scored_sorted)} candidates in parallel. Top: {scored_sorted[0].get('overall_score', 0):.1f}" if scored_sorted else "No candidates scored",
-        "stage": PipelineStage.SCREENING.value,
-    }
 
-    return {
-        "scored_candidates": scored_sorted,
-        "current_stage": PipelineStage.SHORTLIST_REVIEW.value,
-        "shortlist_approval": "pending",
-        "audit_log": [audit_entry],
-    }
+def _get_checkpointer():
+    """In-memory checkpointer for session persistence."""
+    return MemorySaver()
 
 
 # ---------------------------------------------------------------------------
@@ -105,15 +76,16 @@ def collect_scores(state: RecruitmentState) -> dict:
 # ---------------------------------------------------------------------------
 
 def build_workflow_graph() -> StateGraph:
-    """Build the full recruitment pipeline with parallel scoring."""
+    """Build the full recruitment pipeline with 7 consolidated agents."""
 
+    # Initialize Agent components
     jd_architect = create_jd_architect()
     liaison = create_liaison()
     scout = create_scout()
-    screener_single = create_screener_single()   # scores ONE candidate
+    screener_single = create_screener_single()
     coordinator = create_coordinator()
-    interviewer = create_interviewer()
-    decider = create_decider()
+    outreach = create_outreach_agent()
+    response_tracker = create_response_tracker()
 
     graph = StateGraph(RecruitmentState)
 
@@ -123,14 +95,14 @@ def build_workflow_graph() -> StateGraph:
     graph.add_node("scout", scout)
 
     # Parallel scoring nodes
-    graph.add_node("screener_single", screener_single)   # runs N times in parallel
-    graph.add_node("collect_scores", collect_scores)     # fan-in aggregator
+    graph.add_node("screener_single", screener_single)
+    graph.add_node("collect_scores", collect_scores)
 
     graph.add_node("liaison_shortlist", liaison)
     graph.add_node("coordinator", coordinator)
-    graph.add_node("interviewer", interviewer)
-    graph.add_node("decider", decider)
     graph.add_node("liaison_hire", liaison)
+    graph.add_node("outreach", outreach)
+    graph.add_node("response_tracker", response_tracker)
 
     # --- Edges ---
     graph.set_entry_point("jd_architect")
@@ -148,19 +120,25 @@ def build_workflow_graph() -> StateGraph:
     )
 
     # Scout fans out to parallel screener_single nodes
-    graph.add_conditional_edges(
-        "scout",
-        dispatch_scoring,
-    )
-
-    # Screener fan-in → collect_scores
+    graph.add_edge("scout", "screener_single")
     graph.add_edge("screener_single", "collect_scores")
     graph.add_edge("collect_scores", "liaison_shortlist")
 
-    # Shortlist gate
+    # Shortlist approval gate
     graph.add_conditional_edges(
         "liaison_shortlist",
         check_shortlist_approval,
+        {
+            "approved": "liaison_hire",
+            "rejected": "scout",
+            "pending": END,
+        },
+    )
+
+    # Final hire approval gate
+    graph.add_conditional_edges(
+        "liaison_hire",
+        check_hire_approval,
         {
             "approved": "coordinator",
             "rejected": "scout",
@@ -168,20 +146,9 @@ def build_workflow_graph() -> StateGraph:
         },
     )
 
-    graph.add_edge("coordinator", "interviewer")
-    graph.add_edge("interviewer", "decider")
-    graph.add_edge("decider", "liaison_hire")
-
-    # Hire gate
-    graph.add_conditional_edges(
-        "liaison_hire",
-        check_hire_approval,
-        {
-            "approved": END,
-            "rejected": "scout",
-            "pending": END,
-        },
-    )
+    graph.add_edge("coordinator", "outreach")
+    graph.add_edge("outreach", "response_tracker")
+    graph.add_edge("response_tracker", END)
 
     return graph
 
@@ -273,178 +240,57 @@ async def start_workflow(
     ))
     db.commit()
 
-    # 2. Invoke Graph
+    # 2. Fire-and-forget graph invocation (background task)
+    asyncio.create_task(_run_graph_task(db, job_id, initial_state, config))
+
+    # Return immediately while Agent 01 (JD Architect) works in background
+    logger.info(f"Workflow {job_id} initialized. Agent 01 (JD Architect) started in background.")
+    return {
+        "job_id": job_id,
+        "status": "initializing",
+        "current_stage": PipelineStage.JD_DRAFTING.value,
+        "state": initial_state,
+    }
+
+
+async def _run_graph_task(db: Session, job_id: str, state: dict, config: dict):
+    """Background task to execute the graph and sync state."""
     try:
         compiled = get_compiled_graph()
-        result = await compiled.ainvoke(initial_state, config=config)
-
-        # Sync result to DB
-        _sync_state_to_db(db, new_job, result)
-        db.commit()
-
-        logger.info(f"Workflow {job_id} started. Stage: {new_job.current_stage}")
-        return {
-            "job_id": job_id,
-            "status": "running",
-            "current_stage": new_job.current_stage,
-            "state": result,
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to start workflow {job_id}: {e}", exc_info=True)
-        initial_state["error"] = str(e)
-        _sync_state_to_db(db, new_job, initial_state)
-        db.commit()
-
-        return {
-            "job_id": job_id,
-            "status": "error",
-            "error": str(e),
-            "current_stage": PipelineStage.JD_DRAFTING.value,
-            "state": initial_state,
-        }
-
-
-def _sync_state_to_db(db: Session, job: Job, state: dict):
-    """Sync the LangGraph state JSON into individual SQLAlchemy records for analytics."""
-    job.workflow_state = state
-    job.current_stage = state.get("current_stage", "unknown")
-    job.jd_approval = state.get("jd_approval", "pending")
-    job.shortlist_approval = state.get("shortlist_approval", "pending")
-    job.hire_approval = state.get("hire_approval", "pending")
-    if job.current_stage == PipelineStage.COMPLETED.value and not job.completed_at:
-        job.completed_at = datetime.utcnow()
-
-    # Sync Audit Logs
-    for entry in state.get("audit_log", []):
-        exists = db.query(AuditEvent).filter_by(
-            job_id=job.job_id, timestamp=datetime.fromisoformat(entry["timestamp"]), action=entry.get("action")
-        ).first()
-        if not exists:
-            db.add(AuditEvent(
-                job_id=job.job_id,
-                agent=entry.get("agent", "System"),
-                action=entry.get("action", ""),
-                details=entry.get("details", ""),
-                stage=entry.get("stage", ""),
-                timestamp=datetime.fromisoformat(entry["timestamp"])
-            ))
-
-    # Sync Candidate Scores (only once per candidate)
-    for c in state.get("scored_candidates", []):
-        exists = db.query(CandidateScore).filter_by(job_id=job.job_id, candidate_id=c["id"]).first()
-        if not exists:
-            db.add(CandidateScore(
-                job_id=job.job_id, candidate_id=c["id"], candidate_name=c["name"],
-                overall_score=c.get("overall_score", 0), skills_match=c.get("skills_match", 0),
-                experience_match=c.get("experience_match", 0), education_match=c.get("education_match", 0),
-                cultural_fit=c.get("cultural_fit", 0), strengths=c.get("strengths", []),
-                gaps=c.get("gaps", []), reasoning=c.get("reasoning", "")
-            ))
-
-    # Sync Recommendations
-    for r in state.get("final_recommendations", []):
-        exists = db.query(Recommendation).filter_by(job_id=job.job_id, candidate_id=r["candidate_id"]).first()
-        if not exists:
-            db.add(Recommendation(
-                job_id=job.job_id, candidate_id=r["candidate_id"], candidate_name=r["candidate_name"],
-                decision=r.get("decision", "maybe"), confidence=r.get("confidence", 0),
-                overall_weighted_score=r.get("overall_weighted_score", 0),
-                screening_weight=r.get("screening_weight", 0), interview_weight=r.get("interview_weight", 0),
-                reasoning=r.get("reasoning", ""), risk_factors=r.get("risk_factors", [])
-            ))
-
-
-async def _resume_workflow(db: Session, job: Job, updated_state: dict) -> dict:
-    """Internal: resume a paused workflow with updated state."""
-    config = {"configurable": {"thread_id": job.job_id}}
-    try:
-        compiled = get_compiled_graph()
-        result = await compiled.ainvoke(updated_state, config=config)
+        result = await compiled.ainvoke(state, config=config)
         
-        # Save to database
-        _sync_state_to_db(db, job, result)
-        db.commit()
-
-        return {
-            "job_id": job.job_id,
-            "status": "running",
-            "current_stage": result.get("current_stage", "unknown"),
-            "state": result,
-        }
+        # We need a new session if the old one is closed by the caller
+        from app.core.database import SessionLocal
+        with SessionLocal() as new_db:
+             job = new_db.query(Job).filter(Job.job_id == job_id).first()
+             if job:
+                 _sync_state_to_db(new_db, job, result)
+                 new_db.commit()
+        logger.info(f"Background workflow {job_id} sync complete.")
     except Exception as e:
-        logger.error(f"Failed to resume workflow {job.job_id}: {e}", exc_info=True)
-        return {"job_id": job.job_id, "status": "error", "error": str(e)}
+        logger.error(f"Background workflow {job_id} failed: {e}", exc_info=True)
 
 
-async def approve_stage(db: Session, job_id: str, feedback: str = "") -> dict:
-    """Approve the current HITL gate and resume the workflow."""
+async def approve_stage(db: Session, job_id: str, feedback: str = "", updated_jd: str | None = None) -> dict:
+    """Convenience wrapper for approving a stage."""
+    # We need a user_id for resume_workflow (legacy requirement)
+    # We'll fetch the owner of the job
     job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job:
-        return {"error": f"Workflow {job_id} not found"}
- 
-    state = job.workflow_state
-    current_stage = state.get("current_stage", "")
- 
-    update: dict = {"human_feedback": feedback}
-    audit_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "agent": "Human Reviewer",
-        "stage": current_stage,
-    }
- 
-    stage_map = {
-        PipelineStage.JD_REVIEW.value: ("jd_approval", PipelineStage.SOURCING.value, "jd_approved"),
-        PipelineStage.SHORTLIST_REVIEW.value: ("shortlist_approval", PipelineStage.SCHEDULING.value, "shortlist_approved"),
-        PipelineStage.HIRE_REVIEW.value: ("hire_approval", PipelineStage.COMPLETED.value, "hire_approved"),
-    }
- 
-    if current_stage not in stage_map:
-        return {"error": f"No pending approval at stage: {current_stage}"}
- 
-    approval_key, next_stage, action = stage_map[current_stage]
-    update[approval_key] = "approved"
-    update["current_stage"] = next_stage
-    audit_entry["action"] = action
-    audit_entry["details"] = f"Approved. Feedback: {feedback or 'None'}"
-    update["audit_log"] = state.get("audit_log", []) + [audit_entry]
- 
-    return await _resume_workflow(db, job, {**state, **update})
+    if not job: raise ValueError("Job not found")
+    
+    updates = {"human_feedback": feedback}
+    if updated_jd:
+        updates["job_description"] = updated_jd
+        
+    return await resume_workflow(db, job.created_by_id, job_id, "approve", updates)
 
 
 async def reject_stage(db: Session, job_id: str, feedback: str) -> dict:
-    """Reject the current HITL gate with required feedback."""
+    """Convenience wrapper for rejecting a stage."""
     job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job:
-        return {"error": f"Workflow {job_id} not found"}
- 
-    state = job.workflow_state
-    current_stage = state.get("current_stage", "")
- 
-    update: dict = {"human_feedback": feedback}
-    audit_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "agent": "Human Reviewer",
-        "stage": current_stage,
-    }
- 
-    stage_map = {
-        PipelineStage.JD_REVIEW.value: ("jd_approval", PipelineStage.JD_DRAFTING.value, "jd_rejected"),
-        PipelineStage.SHORTLIST_REVIEW.value: ("shortlist_approval", PipelineStage.SOURCING.value, "shortlist_rejected"),
-        PipelineStage.HIRE_REVIEW.value: ("hire_approval", PipelineStage.SOURCING.value, "hire_rejected"),
-    }
- 
-    if current_stage not in stage_map:
-        return {"error": f"No pending approval at stage: {current_stage}"}
- 
-    approval_key, next_stage, action = stage_map[current_stage]
-    update[approval_key] = "rejected"
-    update["current_stage"] = next_stage
-    audit_entry["action"] = action
-    audit_entry["details"] = f"Rejected. Feedback: {feedback}"
-    update["audit_log"] = state.get("audit_log", []) + [audit_entry]
- 
-    return await _resume_workflow(db, job, {**state, **update})
+    if not job: raise ValueError("Job not found")
+    
+    return await resume_workflow(db, job.created_by_id, job_id, "reject", {"human_feedback": feedback})
 
 
 async def resume_workflow(
@@ -452,58 +298,93 @@ async def resume_workflow(
     user_id: int,
     job_id: str,
     action: str,
-    state_updates: dict
+    state_updates: dict | None = None,
 ) -> dict:
-    """External entry point to update state and resume/trigger a workflow."""
+    """Resume a workflow after human intervention (approval/rejection)."""
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise ValueError(f"Job {job_id} not found")
-    
-    current_state = job.workflow_state
-    
-    # Merge updates
-    new_state = {**current_state, **state_updates}
-    
-    # Add audit event
-    audit_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "agent": "System (API)",
-        "action": action,
-        "details": f"External action triggered: {action}",
-        "stage": new_state.get("current_stage", "unknown"),
-    }
-    new_state["audit_log"] = current_state.get("audit_log", []) + [audit_entry]
-    
-    # Sync basic info back if needed (candidates count etc)
-    result = await _resume_workflow(db, job, new_state)
-    return result.get("state", result)
+
+    config = {"configurable": {"thread_id": job_id}}
+    state = job.workflow_state
+
+    # Update state with human action
+    if state_updates:
+        for k, v in state_updates.items():
+            state[k] = v
+
+    if action == "approve":
+        # Determine which approval flag to set
+        if state["current_stage"] == PipelineStage.JD_REVIEW.value:
+            state["jd_approval"] = "approved"
+        elif state["current_stage"] == PipelineStage.SHORTLIST_REVIEW.value:
+            state["shortlist_approval"] = "approved"
+    elif action == "reject":
+        if state["current_stage"] == PipelineStage.JD_REVIEW.value:
+            state["jd_approval"] = "rejected"
+            state["current_stage"] = PipelineStage.JD_DRAFTING.value
+        elif state["current_stage"] == PipelineStage.SHORTLIST_REVIEW.value:
+            state["shortlist_approval"] = "rejected"
+            state["current_stage"] = PipelineStage.SOURCING.value
+
+    # Resume graph execution from breakpoints
+    compiled = get_compiled_graph()
+    try:
+        # We run this in foreground for now so the UI gets immediate feedback on the state change
+        result = await compiled.ainvoke(None, config=config)
+        _sync_state_to_db(db, job, result)
+        db.commit()
+        return result
+    except Exception as e:
+        logger.error(f"Failed to resume workflow {job_id}: {e}")
+        raise
 
 
 def get_workflow_status(db: Session, job_id: str) -> dict | None:
+    """Fetch current status and state for a workflow."""
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         return None
-    state = job.workflow_state
+
     return {
-        "job_id": job_id,
-        "current_stage": state.get("current_stage", "unknown"),
-        "job_title": state.get("job_title", ""),
-        "department": state.get("department", ""),
-        "created_at": str(job.created_at),
-        "state": state,
+        "job_id": job.job_id,
+        "job_title": job.job_title,
+        "department": job.department,
+        "current_stage": job.current_stage,
+        "state": job.workflow_state,
+        "created_at": job.created_at.isoformat(),
     }
 
 
 def get_all_workflows(db: Session) -> list[dict]:
+    """Fetch all active workflows."""
     jobs = db.query(Job).order_by(Job.created_at.desc()).all()
-    return [
-        {
-            "job_id": j.job_id,
-            "job_title": j.job_title,
-            "department": j.department,
-            "current_stage": j.current_stage,
-            "candidates_count": len(j.workflow_state.get("candidates", [])),
-            "created_at": str(j.created_at),
-        }
-        for j in jobs
-    ]
+    return [{
+        "job_id": j.job_id,
+        "job_title": j.job_title,
+        "department": j.department,
+        "current_stage": j.current_stage,
+        "created_at": j.created_at.isoformat(),
+    } for j in jobs]
+
+
+def _sync_state_to_db(db: Session, job: Job, state: RecruitmentState):
+    """Update SQL model fields from the flattened RecruitmentState."""
+    job.current_stage = state.get("current_stage", job.current_stage)
+    job.workflow_state = state
+
+    # Also log any new audit entries to the global AuditEvent table
+    if "audit_log" in state:
+        for entry in state["audit_log"]:
+            existing = db.query(AuditEvent).filter(
+                AuditEvent.job_id == job.job_id,
+                AuditEvent.timestamp == entry["timestamp"]
+            ).first()
+            if not existing:
+                db.add(AuditEvent(
+                    job_id=job.job_id,
+                    agent=entry["agent"],
+                    action=entry["action"],
+                    details=entry["details"],
+                    stage=entry["stage"]
+                ))

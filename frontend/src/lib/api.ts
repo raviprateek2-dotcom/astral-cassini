@@ -2,18 +2,36 @@
  * API client for PRO HR backend.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = ""; // Handled by Next.js rewrites in development
 
 let currentAuthToken = "";
 
+// Initialize token from localStorage if available (client-side only)
+if (typeof window !== "undefined") {
+    currentAuthToken = localStorage.getItem("token") || "";
+}
+
 export function setAuthToken(token: string) {
     currentAuthToken = token;
+    if (typeof window !== "undefined") {
+        if (token) {
+            localStorage.setItem("token", token);
+        } else {
+            localStorage.removeItem("token");
+        }
+    }
 }
 
 async function fetchAPI(endpoint: string, options?: RequestInit) {
+    // Re-check localStorage in case another tab updated it, or token was set recently
+    if (typeof window !== "undefined" && !currentAuthToken) {
+        currentAuthToken = localStorage.getItem("token") || "";
+    }
+
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     };
+    
     if (currentAuthToken) {
         headers["Authorization"] = `Bearer ${currentAuthToken}`;
     }
@@ -71,11 +89,8 @@ export const api = {
     },
 
     // Analytics
-    getAnalyticsSummary: () => fetchAPI("/api/analytics/summary"),
-    getAnalyticsFunnel: () => fetchAPI("/api/analytics/funnel"),
-    getAnalyticsRecent: () => fetchAPI("/api/analytics/recent_activity"),
     getAnalyticsDepartments: () => fetchAPI("/api/analytics/department_breakdown"),
-    getAnalyticsTime: () => fetchAPI("/api/analytics/time_to_hire"),
+    getAnalyticsDashboard: () => fetchAPI("/api/analytics/dashboard"),
 
     // Jobs
     createJob: (data: CreateJobPayload) =>
@@ -84,10 +99,10 @@ export const api = {
     getJob: (id: string) => fetchAPI(`/api/jobs/${id}`),
 
     // Workflow
-    approveStage: (id: string, feedback = "") =>
-        fetchAPI(`/api/jobs/${id}/approve`, {
+    approveStage: (id: string, feedback = "", updatedJD?: string) =>
+        fetchAPI(`/api/workflow/${id}/approve`, {
             method: "POST",
-            body: JSON.stringify({ feedback }),
+            body: JSON.stringify({ feedback, updated_jd: updatedJD }),
         }),
     rejectStage: (id: string, feedback: string) =>
         fetchAPI(`/api/jobs/${id}/reject`, {

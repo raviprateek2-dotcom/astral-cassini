@@ -3,10 +3,41 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
+interface Job {
+    job_id: string;
+    job_title: string;
+    department: string;
+}
+
+interface CandidateProfile {
+    candidate_id: string;
+    candidate_name: string;
+    overall_score: number;
+    skills_match: number;
+    experience_match: number;
+    education_match: number;
+    cultural_fit: number;
+    strengths?: string[];
+    gaps?: string[];
+    reasoning?: string;
+    match_reason?: string;
+}
+
+interface RawCandidate {
+    name: string;
+    skills: string[];
+    experience_years: number;
+    relevance_score: number;
+    match_reason?: string;
+}
+
 export default function CandidatesPage() {
-    const [jobs, setJobs] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<Job[]>([]);
     const [selectedJob, setSelectedJob] = useState<string>("");
-    const [candidates, setCandidates] = useState<any>(null);
+    const [candidates, setCandidates] = useState<{
+        scored_candidates: CandidateProfile[];
+        candidates: RawCandidate[];
+    } | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -69,7 +100,7 @@ export default function CandidatesPage() {
                         📊 Scored Candidates ({scored.length})
                     </h2>
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                        {scored.map((c: any, i: number) => (
+                        {scored.map((c: CandidateProfile, i: number) => (
                             <div
                                 key={i}
                                 style={{
@@ -163,8 +194,15 @@ export default function CandidatesPage() {
                                 </div>
 
                                 {c.reasoning && (
-                                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 12, fontStyle: "italic" }}>
-                                        {c.reasoning}
+                                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 12, padding: "8px 12px", background: "rgba(59, 130, 246, 0.05)", borderRadius: 8, borderLeft: "3px solid var(--accent-blue)" }}>
+                                        <span style={{ marginRight: 6 }}>💡</span>
+                                        <strong>Recruitment Reason:</strong> {c.reasoning}
+                                    </p>
+                                )}
+                                {c.match_reason && !c.reasoning && (
+                                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 12, padding: "8px 12px", background: "rgba(59, 130, 246, 0.05)", borderRadius: 8, borderLeft: "3px solid var(--accent-blue)" }}>
+                                        <span style={{ marginRight: 6 }}>💡</span>
+                                        <strong>Match Reason:</strong> {c.match_reason}
                                     </p>
                                 )}
                             </div>
@@ -189,7 +227,7 @@ export default function CandidatesPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {matched.map((c: any, i: number) => (
+                            {matched.map((c: RawCandidate, i: number) => (
                                 <tr key={i}>
                                     <td style={{ fontWeight: 600 }}>{c.name}</td>
                                     <td>
@@ -203,17 +241,22 @@ export default function CandidatesPage() {
                                     </td>
                                     <td>{c.experience_years} yrs</td>
                                     <td>
-                                        <span
-                                            style={{
-                                                fontWeight: 700,
-                                                color:
-                                                    c.relevance_score >= 0.9
-                                                        ? "var(--accent-emerald)"
-                                                        : "var(--accent-amber)",
-                                            }}
-                                        >
-                                            {(c.relevance_score * 100).toFixed(0)}%
-                                        </span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span
+                                                style={{
+                                                    fontWeight: 700,
+                                                    color:
+                                                        c.relevance_score >= 0.8
+                                                            ? "var(--accent-emerald)"
+                                                            : "var(--accent-amber)",
+                                                }}
+                                            >
+                                                {(c.relevance_score * 100).toFixed(0)}%
+                                            </span>
+                                            {c.match_reason && (
+                                                <span title={c.match_reason} style={{ cursor: "help", opacity: 0.7 }}>💡</span>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

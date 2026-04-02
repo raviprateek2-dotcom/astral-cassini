@@ -56,6 +56,11 @@ class Job(Base):
     shortlist_approval = Column(String(20), default="pending")
     hire_approval = Column(String(20), default="pending")
     job_description = Column(Text, default="")
+    
+    # Analytics / Aggregate status
+    outreach_completed = Column(Boolean, default=False)
+    offer_sent = Column(Boolean, default=False)
+    avg_match_percentage = Column(Float, default=0.0)
 
     # Full LangGraph state (JSON blob for restore)
     workflow_state = Column(JSON, default=dict)
@@ -72,6 +77,8 @@ class Job(Base):
     interviews = relationship("Interview", back_populates="job", cascade="all, delete-orphan")
     audit_events = relationship("AuditEvent", back_populates="job", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="job", cascade="all, delete-orphan")
+    outreach = relationship("Outreach", back_populates="job", cascade="all, delete-orphan")
+    offers = relationship("Offer", back_populates="job", cascade="all, delete-orphan")
 
 
 class CandidateScore(Base):
@@ -83,6 +90,7 @@ class CandidateScore(Base):
     candidate_name = Column(String(255), nullable=False)
 
     overall_score = Column(Float, default=0.0)
+    match_percentage = Column(Float, default=0.0)
     skills_match = Column(Float, default=0.0)
     experience_match = Column(Float, default=0.0)
     education_match = Column(Float, default=0.0)
@@ -90,6 +98,8 @@ class CandidateScore(Base):
 
     strengths = Column(JSON, default=list)
     gaps = Column(JSON, default=list)
+    missing_skills = Column(JSON, default=list)
+    overqualification = Column(JSON, default=list)
     reasoning = Column(Text, default="")
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -153,3 +163,36 @@ class Recommendation(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     job = relationship("Job", back_populates="recommendations")
+
+
+class Outreach(Base):
+    __tablename__ = "outreach"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String(20), ForeignKey("jobs.job_id"), nullable=False)
+    candidate_id = Column(String(50), nullable=False)
+    candidate_name = Column(String(255), nullable=False)
+    email_subject = Column(String(255))
+    email_body = Column(Text)
+    response_text = Column(Text, nullable=True)
+    engagement_level = Column(String(50), default="High")  # High | Medium | Low
+    status = Column(String(50), default="sent")  # sent | responding | scheduled
+    sent_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("Job", back_populates="outreach")
+
+
+class Offer(Base):
+    __tablename__ = "offers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String(20), ForeignKey("jobs.job_id"), nullable=False)
+    candidate_id = Column(String(50), nullable=False)
+    candidate_name = Column(String(255), nullable=False)
+    offer_markdown = Column(Text)
+    salary_offered = Column(String(100))
+    status = Column(String(50), default="draft")  # draft | sent | accepted | rejected
+    valid_until = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("Job", back_populates="offers")

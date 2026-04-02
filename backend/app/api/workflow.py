@@ -14,6 +14,7 @@ from app.graph.workflow import (
     approve_stage,
     reject_stage,
     get_workflow_status,
+    resume_workflow,
 )
 
 router = APIRouter(prefix="/api/workflow", tags=["Workflow"])
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/api/workflow", tags=["Workflow"])
 class ApprovalRequest(BaseModel):
     """Request body for approving/rejecting a stage."""
     feedback: str = ""
+    updated_jd: str | None = None # For JD refinement stage
 
 
 @router.post("/{job_id}/approve")
@@ -32,7 +34,7 @@ async def approve(
     _: Annotated[User, RequireHR],
 ):
     """Approve the current HITL gate and resume the workflow (HR only)."""
-    result = await approve_stage(db, job_id, feedback=req.feedback)
+    result = await approve_stage(db, job_id, feedback=req.feedback, updated_jd=req.updated_jd)
     if "error" in result and result.get("status") != "running":
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -55,6 +57,33 @@ async def reject(
     if "error" in result and result.get("status") != "running":
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+class PatchStateRequest(BaseModel):
+    action: str
+    state_updates: dict
+
+@router.patch("/{job_id}/state")
+async def patch_state(
+    job_id: str,
+    req: PatchStateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, RequireHR],
+):
+    """Manually update the workflow state and resume execution.
+    Useful for E2E testing and agent-override scenarios.
+    """
+    try:
+        result = await resume_workflow(
+            db=db,
+            user_id=current_user.id,
+            job_id=job_id,
+            action=req.action,
+            state_updates=req.state_updates
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{job_id}/status")

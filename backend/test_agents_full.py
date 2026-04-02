@@ -3,7 +3,7 @@ import time
 import json
 import sys
 
-BASE_URL = "http://localhost:8000/api"
+BASE_URL = "http://127.0.0.1:8000/api"
 
 def test_full_agent_workflow():
     print("--- Starting Agent Intelligence Validation ---")
@@ -71,17 +71,15 @@ def test_full_agent_workflow():
         resp = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
         status = resp.json()
         stage = status.get("current_stage")
-        candidates = status.get("state", {}).get("candidates", [])
+        scored_candidates = status.get("state", {}).get("scored_candidates", [])
         
-        print(f"   - Polling... Current Stage: {stage} | Candidates Found: {len(candidates)}")
+        print(f"   - Polling... Current Stage: {stage} | Candidates Scored: {len(scored_candidates)}")
         
-        if stage == "shortlist_review" or len(candidates) > 0:
-            scored = [c for c in candidates if c.get("screening_score", 0) > 0]
-            if len(scored) > 0:
-                print(f"OK: Agent 4 (Screener) has scored {len(scored)} candidates!")
-                for c in scored:
-                    print(f"     - Candidate: {c['name']} | Score: {c['screening_score']}/100")
-                break
+        if stage == "shortlist_review" and len(scored_candidates) > 0:
+            print(f"OK: Agent 4 (Screener) has scored {len(scored_candidates)} candidates!")
+            for c in scored_candidates:
+                print(f"     - Candidate: {c.get('name', 'Unknown')} | Score: {c.get('overall_score', 0):.1f}/100")
+            break
         time.sleep(3)
     else:
         print("ERR: Timeout waiting for Sourcing/Screening results.")

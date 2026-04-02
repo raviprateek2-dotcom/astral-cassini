@@ -57,63 +57,96 @@ def create_interviewer():
         api_key=settings.openai_api_key,
     )
 
-    def interviewer_node(state: RecruitmentState) -> dict:
-        """Process interview transcripts and generate assessments."""
+    async def interviewer_node(state: RecruitmentState) -> dict:
+        """Process interview transcripts OR generate contextual questions for prep."""
+        
+        # Skip if we are past the interviewing stage
+        current_stage = state.get("current_stage")
+        if current_stage and current_stage != PipelineStage.INTERVIEWING.value:
+            return {}
 
-        scheduled_interviews = state.get("scheduled_interviews", [])
+        scored_candidates = state.get("scored_candidates", [])
         transcripts = state.get("interview_transcripts", [])
         job_title = state.get("job_title", "")
+        job_description = state.get("job_description", "")
 
-        # Get unique candidates from scheduled interviews
-        candidates_interviewed = {}
-        for interview in scheduled_interviews:
-            cid = interview.get("candidate_id", "")
-            if cid not in candidates_interviewed:
-                candidates_interviewed[cid] = interview.get("candidate_name", "Unknown")
-
-        # Use transcripts if available, otherwise generate mock assessments
+        # 1. ANALYZE TRANSCRIPTS (If available)
         if transcripts:
-            user_prompt = f"""Analyze the following interview transcripts for the role of {job_title}:
-
-"""
-            for i, transcript in enumerate(transcripts):
-                user_prompt += f"\n--- Transcript {i+1} ---\n{transcript}\n"
-
-            user_prompt += "\nProvide a competency assessment for each candidate as a JSON array."
-
-            messages = [
-                SystemMessage(content=SYSTEM_PROMPT),
-                HumanMessage(content=user_prompt),
-            ]
-
-            response = llm.invoke(messages)
-
+            user_prompt = f"Analyze transcripts for {job_title}:\n" + "\n".join(transcripts)
+            messages = [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_prompt)]
+            
             try:
+                response = await llm.ainvoke(messages)
                 content = response.content
                 if "```json" in content:
                     content = content.split("```json")[1].split("```")[0]
                 elif "```" in content:
                     content = content.split("```")[1].split("```")[0]
                 assessments = json.loads(content.strip())
-            except (json.JSONDecodeError, IndexError):
-                assessments = _generate_mock_assessments(candidates_interviewed)
+            except Exception:
+                assessments = _generate_mock_assessments({c.get("id", c.get("candidate_id")): c.get("name", c.get("candidate_name")) for c in scored_candidates})
+
+            return {
+                "interview_assessments": assessments,
+                "current_stage": PipelineStage.DECISION.value,
+                "audit_log": [{
+                    "timestamp": datetime.now().isoformat(),
+                    "agent": "The Interviewer",
+                    "action": "completed_assessments",
+                    "details": f"Assessed {len(assessments)} candidates for '{job_title}'",
+                    "stage": PipelineStage.INTERVIEWING.value,
+                }],
+            }
+        
+        # 2. GENERATE QUESTIONS (Interview Prep)
         else:
-            # Generate mock assessments for demo
-            assessments = _generate_mock_assessments(candidates_interviewed)
+            prep_data = []
+            for candidate in scored_candidates:
+                gaps = candidate.get("gaps", [])
+                name = candidate.get("name", candidate.get("candidate_name", "Unknown"))
+                cid = candidate.get("id", candidate.get("candidate_id"))
+                
+                prep_prompt = f"""As an expert interviewer for the role of {job_title}, 
+                generate 5-7 targeted behavioral interview questions for candidate {name}.
+                
+                Focus on these specific gaps/concerns identified during screening:
+                {chr(10).join(f'- {g}' for g in gaps)}
+                
+                Job context:
+                {job_description[:500]}
+                
+                Return the questions as a simple JSON list of strings named "questions"."""
+                
+                try:
+                    res = await llm.ainvoke([HumanMessage(content=prep_prompt)])
+                    content = res.content
+                    if "```json" in content:
+                        content = content.split("```json")[1].split("```")[0]
+                    questions_data = json.loads(content.strip())
+                    questions = questions_data.get("questions", [])
+                except Exception:
+                    questions = [f"Considering your background, how would you address your gap in {g}?" for g in gaps[:3]]
+                    if not questions:
+                        questions = ["Tell me about your most challenging project.", "How do you handle conflict in a team?"]
+                
+                prep_data.append({
+                    "candidate_id": cid,
+                    "candidate_name": name,
+                    "questions": questions
+                })
 
-        audit_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "agent": "The Interviewer",
-            "action": "completed_assessments",
-            "details": f"Assessed {len(assessments)} candidates for '{job_title}'",
-            "stage": PipelineStage.INTERVIEWING.value,
-        }
+            audit_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "agent": "The Interviewer",
+                "action": "generated_contextual_questions",
+                "details": f"Prepared interview guides for {len(prep_data)} candidates addressing identified gaps.",
+                "stage": PipelineStage.INTERVIEWING.value,
+            }
 
-        return {
-            "interview_assessments": assessments,
-            "current_stage": PipelineStage.DECISION.value,
-            "audit_log": [audit_entry],
-        }
+            return {
+                "suggested_questions": prep_data,
+                "audit_log": [audit_entry],
+            }
 
     return interviewer_node
 

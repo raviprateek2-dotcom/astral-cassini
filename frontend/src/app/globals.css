@@ -515,3 +515,42 @@ textarea.input {
 .thinking-dot {
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
 }
+
+/* --- ECOSYSTEM & TEAM ENHANCEMENTS --- */
+.agent-hover {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.agent-hover:hover {
+    transform: translateY(-8px) scale(1.02);
+    border-color: var(--accent-purple);
+    box-shadow: 0 20px 40px rgba(139, 92, 246, 0.15);
+}
+
+.team-card {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid var(--border-glass);
+}
+.team-card:hover:not(.active-member) {
+    transform: translateY(-5px);
+    border-color: rgba(255,255,255,0.2);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+}
+.active-member {
+    grid-column: span 2;
+    z-index: 10;
+}
+@media (max-width: 768px) {
+    .active-member {
+        grid-column: span 1;
+    }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.pulse-active {
+    animation: pulse 2s infinite;
+}

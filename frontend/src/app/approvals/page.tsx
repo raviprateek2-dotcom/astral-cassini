@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import JDEditor from "@/components/JDEditor";
 
 const stageLabels: Record<string, string> = {
     jd_review: "Job Description Review",
@@ -9,21 +10,25 @@ const stageLabels: Record<string, string> = {
     hire_review: "Hire Decision Review",
 };
 
+interface JobProfile {
+    job_id: string;
+    job_title: string;
+    department: string;
+    current_stage: string;
+}
+
 export default function ApprovalsPage() {
-    const [jobs, setJobs] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<JobProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [feedback, setFeedback] = useState<Record<string, string>>({});
     const [details, setDetails] = useState<Record<string, any>>({});
+    const [editedJDs, setEditedJDs] = useState<Record<string, string>>({});
 
-    useEffect(() => {
-        loadJobs();
-    }, []);
-
-    async function loadJobs() {
+    const loadJobs = async () => {
         try {
             const all = await api.listJobs();
-            const pending = all.filter((j: any) =>
+            const pending = all.filter((j: JobProfile) =>
                 ["jd_review", "shortlist_review", "hire_review"].includes(j.current_stage)
             );
             setJobs(pending);
@@ -37,12 +42,21 @@ export default function ApprovalsPage() {
             }
         } catch { }
         setLoading(false);
-    }
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+        const init = async () => {
+            if (isMounted) await loadJobs();
+        };
+        init();
+        return () => { isMounted = false; };
+    }, []);
 
     async function handleApprove(jobId: string) {
         setActionLoading(jobId);
         try {
-            await api.approveStage(jobId, feedback[jobId] || "");
+            await api.approveStage(jobId, feedback[jobId] || "", editedJDs[jobId]);
             await loadJobs();
         } catch { }
         setActionLoading(null);
@@ -110,25 +124,14 @@ export default function ApprovalsPage() {
 
                                 {/* Content to Approve */}
                                 {job.current_stage === "jd_review" && detail.job_description && (
-                                    <div style={{ marginBottom: 20 }}>
+                                    <div style={{ marginBottom: 24 }}>
                                         <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
-                                            📝 Generated Job Description
+                                            📝 Review & Refine JD
                                         </h3>
-                                        <div
-                                            style={{
-                                                padding: 20,
-                                                borderRadius: 12,
-                                                border: "1px solid var(--border-glass)",
-                                                background: "rgba(15, 23, 42, 0.6)",
-                                                fontSize: "0.85rem",
-                                                lineHeight: 1.7,
-                                                whiteSpace: "pre-wrap",
-                                                maxHeight: 400,
-                                                overflowY: "auto",
-                                            }}
-                                        >
-                                            {detail.job_description}
-                                        </div>
+                                        <JDEditor 
+                                            initialValue={detail.job_description} 
+                                            onChange={(val) => setEditedJDs(prev => ({ ...prev, [job.job_id]: val }))} 
+                                        />
                                     </div>
                                 )}
 
@@ -146,7 +149,7 @@ export default function ApprovalsPage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {detail.scored_candidates.map((c: any, i: number) => (
+                                                {detail.scored_candidates.map((c: { candidate_name: string; overall_score: number; strengths: string[] }, i: number) => (
                                                     <tr key={i}>
                                                         <td style={{ fontWeight: 600 }}>{c.candidate_name}</td>
                                                         <td>
@@ -172,7 +175,7 @@ export default function ApprovalsPage() {
                                         <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
                                             ⚖️ Final Recommendations
                                         </h3>
-                                        {detail.final_recommendations.map((r: any, i: number) => (
+                                        {detail.final_recommendations.map((r: { candidate_name: string; reasoning: string; decision: string; confidence: number }, i: number) => (
                                             <div key={i} style={{
                                                 padding: 16,
                                                 borderRadius: 10,
@@ -197,6 +200,32 @@ export default function ApprovalsPage() {
                                         ))}
                                     </div>
                                 )}
+
+                                {/* Governance & ROI Section */}
+                                <div style={{ 
+                                    padding: 16, 
+                                    borderRadius: 12, 
+                                    background: "rgba(16, 185, 129, 0.05)", 
+                                    border: "1px dashed rgba(16, 185, 129, 0.3)",
+                                    marginBottom: 20 
+                                }}>
+                                    <h4 style={{ margin: "0 0 8px", fontSize: "0.75rem", fontWeight: 700, color: "var(--accent-emerald)", display: "flex", alignItems: "center", gap: 6 }}>
+                                        🛡️ Governance Audit Trail
+                                    </h4>
+                                    {(details[job.job_id]?.audit_log || [])
+                                        .filter((l: { action: string }) => l.action === "bias_audit")
+                                        .map((l: { timestamp: string; details: string }, i: number) => (
+                                            <div key={i} style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", gap: 8 }}>
+                                                <span style={{ color: "var(--accent-emerald)" }}>•</span>
+                                                <span>{l.details}</span>
+                                            </div>
+                                        ))}
+                                    {!(details[job.job_id]?.audit_log || []).some((l: { action: string }) => l.action === "bias_audit") && (
+                                        <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>
+                                            Waiting for agent compliance verification...
+                                        </p>
+                                    )}
+                                </div>
 
                                 {/* Feedback + Actions */}
                                 <div>

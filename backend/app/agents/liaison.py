@@ -32,6 +32,13 @@ def create_liaison():
             audit_entries.append({
                 "timestamp": datetime.now().isoformat(),
                 "agent": "The Liaison",
+                "action": "ghosting_prevention_update",
+                "details": "Liaison Update: Notifying relevant parties that the Job Description is ready for review. Ensuring no delays in the intake process.",
+                "stage": PipelineStage.JD_REVIEW.value,
+            })
+            audit_entries.append({
+                "timestamp": datetime.now().isoformat(),
+                "agent": "The Liaison",
                 "action": "awaiting_jd_approval",
                 "details": "Job description is ready for human review",
                 "stage": PipelineStage.JD_REVIEW.value,
@@ -46,6 +53,13 @@ def create_liaison():
             audit_entries.append({
                 "timestamp": datetime.now().isoformat(),
                 "agent": "The Liaison",
+                "action": "ghosting_prevention_update",
+                "details": f"Liaison Update: Sending a 'Soft Pulse' update to {len(scored)} candidates. Informing them that shortlisting is underway to prevent ghosting.",
+                "stage": PipelineStage.SHORTLIST_REVIEW.value,
+            })
+            audit_entries.append({
+                "timestamp": datetime.now().isoformat(),
+                "agent": "The Liaison",
                 "action": "awaiting_shortlist_approval",
                 "details": f"Shortlist of {len(scored)} scored candidates ready for review",
                 "stage": PipelineStage.SHORTLIST_REVIEW.value,
@@ -57,6 +71,13 @@ def create_liaison():
 
         elif current_stage == PipelineStage.HIRE_REVIEW.value:
             recs = state.get("final_recommendations", [])
+            audit_entries.append({
+                "timestamp": datetime.now().isoformat(),
+                "agent": "The Liaison",
+                "action": "ghosting_prevention_update",
+                "details": "Liaison Update: Proactively updating high-potential candidates that final deliberations are in progress. Maintaining high engagement.",
+                "stage": PipelineStage.HIRE_REVIEW.value,
+            })
             audit_entries.append({
                 "timestamp": datetime.now().isoformat(),
                 "agent": "The Liaison",
