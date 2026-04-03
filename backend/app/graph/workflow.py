@@ -162,7 +162,11 @@ def get_compiled_graph():
     global _compiled_graph
     if _compiled_graph is None:
         graph = build_workflow_graph()
-        _compiled_graph = graph.compile(checkpointer=_checkpointer)
+        # Ensure the graph pauses for human intervention at these stages
+        _compiled_graph = graph.compile(
+            checkpointer=_checkpointer,
+            interrupt_before=["liaison_jd", "liaison_shortlist", "liaison_hire"]
+        )
     return _compiled_graph
 
 
@@ -330,7 +334,11 @@ async def resume_workflow(
     # Resume graph execution from breakpoints
     compiled = get_compiled_graph()
     try:
-        # We run this in foreground for now so the UI gets immediate feedback on the state change
+        # 3. Explicitly update the graph's internal checkpoint state 
+        # before resuming to clear the interruption
+        await compiled.aupdate_state(config, state)
+
+        # 4. Resume execution
         result = await compiled.ainvoke(None, config=config)
         _sync_state_to_db(db, job, result)
         db.commit()

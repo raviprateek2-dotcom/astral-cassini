@@ -165,16 +165,12 @@ Please incorporate this feedback into the revised job description.
             "timestamp": datetime.now().isoformat(),
             "agent": "JD Architect",
             "action": "drafted_job_description",
-            "details": f"Generated strategic JD. Reasoning: {thought}",
-            "stage": PipelineStage.JD_DRAFTING.value,
-        }
-        
-        # Bonus: Add the bias audit to the audit log for governance
-        governance_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "agent": "Governance Monitor",
-            "action": "bias_audit_complete",
-            "details": audit_summary,
+            "details": json.dumps({
+                "thought_process": thought,
+                "bias_audit": audit_summary,
+                "strategic_value": "Automated intake conversion & inclusivity alignment.",
+                "trade_offs": "Balanced technical depth with accessibility to broaden the talent pool."
+            }),
             "stage": PipelineStage.JD_DRAFTING.value,
         }
 
@@ -182,7 +178,7 @@ Please incorporate this feedback into the revised job description.
             "job_description": final_jd,
             "current_stage": PipelineStage.JD_REVIEW.value,
             "jd_approval": "pending",
-            "audit_log": [audit_entry, governance_entry],
+            "audit_log": [audit_entry],
         }
 
     return jd_architect_node

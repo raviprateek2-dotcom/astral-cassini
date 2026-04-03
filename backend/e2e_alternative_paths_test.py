@@ -18,7 +18,7 @@ def test_jd_rejection_loop():
     print("\n--- TESTING ALTERNATIVE PATH: JD REJECTION & REFINEMENT ---")
     headers = get_headers()
     
-    # 1. Create Job (Non-blocking now)
+    # 1. Create Job (Non-blocking)
     job_data = {
         "job_title": "Quantum Mechanic",
         "department": "Physics",
@@ -30,15 +30,25 @@ def test_jd_rejection_loop():
         print(f"✘ Failed to create job: {res.status_code} - {res.text}")
         return
     job_id = res.json()["job_id"]
-    print(f"✓ Job created: {job_id} (Status: {res.json().get('status')})")
+    print(f"✓ Job created: {job_id}")
 
-    # Wait for JD Architect (Agent 01) - Needs more time for background task
-    print("... Waiting for background JD generation (Agent 01) ...")
-    time.sleep(20)
+    # Wait for JD Architect (Agent 01)
+    print("... Polling for JD_REVIEW state (Agent 01) ...")
+    for i in range(20):
+        status_res = requests.get(f"{BASE_URL}/workflow/{job_id}/status", headers=headers)
+        current_stage = status_res.json().get("current_stage")
+        if current_stage == "jd_review":
+            print(f"    [Success] Agent 01 complete.")
+            break
+        print(f"    [Poll {i+1}] Stage: {current_stage}")
+        time.sleep(3)
+    else:
+        print("✘ Failed to reach jd_review state.")
+        return
 
     # 2. Reject JD with feedback
     rejection_data = {
-        "feedback": "Stop talking about cats. Focus on 'Entanglement Protocols' specifically."
+        "feedback": "Focus on 'Entanglement Protocols' specifically."
     }
     res = requests.post(f"{BASE_URL}/workflow/{job_id}/reject", json=rejection_data, headers=headers)
     if res.status_code != 200:
@@ -46,39 +56,51 @@ def test_jd_rejection_loop():
         return
     print(f"✘ JD Rejected with feedback: {rejection_data['feedback']}")
 
-    # Wait for re-drafting (Agent 01 Refinement)
-    print("... Waiting for JD refinement ...")
-    time.sleep(15)
-    
-    # 3. Check if JD updated
-    res = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
-    job_detail = res.json()
-    new_jd = job_detail.get("state", {}).get("job_description", "")
-    
-    if "Entanglement Protocols" in new_jd:
-        print("✓ SUCCESS: JD refined successfully based on feedback!")
+    # Wait for re-drafting
+    print("... Polling for refinement ...")
+    time.sleep(5) # Base delay
+    for i in range(15):
+        det_res = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
+        jd_text = det_res.json().get("state", {}).get("job_description", "")
+        if "Entanglement Protocols" in jd_text:
+            print("✓ SUCCESS: JD refined successfully based on feedback!")
+            break
+        print(f"    [Poll {i+1}] Waiting for updated JD...")
+        time.sleep(3)
     else:
-        print(f"⚠ FAILURE: JD refinement missed the feedback. JD: {new_jd[:100]}...")
+        print("⚠ FAILURE: JD refinement missed the feedback.")
 
 def test_shortlist_rejection_loop():
-    print("\n--- TESTING ALTERNATIVE PATH: SHORTLIST REJECTION ---")
+    print("\n--- TESTING ALTERNATIVE PATH: SHORTLIST REJECTION & RAG REFINEMENT ---")
     headers = get_headers()
     
-    # Create another job
-    job_id = f"test_{int(time.time())}"
-    patch_data = {
-        "action": "inject_jd",
-        "state_updates": {
-            "job_id": job_id,
-            "job_title": "Deep Sea Archaeologist",
-            "job_description": "We need archaeologists who can dive.",
-            "jd_approval": "approved",
-            "current_stage": "shortlist_review",
-            "candidates": [{"id": "c1", "name": "Indiana Jones", "skills": ["History"]}]
-        }
+    # Create another job but approve JD immediately
+    job_data = {
+        "job_title": "Deep Sea Archaeologist",
+        "department": "Exploration",
+        "requirements": ["History degree"]
     }
-    # Create job via patch bypass for speed
-    requests.patch(f"{BASE_URL}/workflow/{job_id}/state", json=patch_data, headers=headers)
+    res = requests.post(f"{BASE_URL}/jobs", json=job_data, headers=headers)
+    job_id = res.json()["job_id"]
+    
+    # Wait for JD
+    while requests.get(f"{BASE_URL}/workflow/{job_id}/status", headers=headers).json().get("current_stage") != "jd_review":
+        time.sleep(2)
+        
+    # Approve JD
+    requests.post(f"{BASE_URL}/workflow/{job_id}/approve", json={"feedback": "Looks good"}, headers=headers)
+    print("✓ JD Approved, entering Sourcing...")
+    
+    # Wait for Sourcing (Agent 03) to hit Shortlist Review
+    print("... Polling for SHORTLIST_REVIEW state (Agent 03) ...")
+    for i in range(20):
+        status_res = requests.get(f"{BASE_URL}/workflow/{job_id}/status", headers=headers)
+        current_stage = status_res.json().get("current_stage")
+        if current_stage == "shortlist_review":
+            print(f"    [Success] Agent 03 (The Scout) complete.")
+            break
+        print(f"    [Poll {i+1}] Stage: {current_stage}")
+        time.sleep(3)
     
     # Reject Shortlist
     rejection_data = {
@@ -87,21 +109,20 @@ def test_shortlist_rejection_loop():
     requests.post(f"{BASE_URL}/workflow/{job_id}/reject", json=rejection_data, headers=headers)
     print(f"✘ Shortlist Rejected with feedback: {rejection_data['feedback']}")
     
-    # Give time for The Scout to run again with feedback
-    print("... Waiting for re-sourcing with feedback ...")
-    time.sleep(15)
-    
-    # Check if new candidates found
-    res = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
-    candidates = res.json().get("state", {}).get("candidates", [])
-    
-    found_welder = any("Welding" in str(c.get("skills", [])) for c in candidates)
-    
-    if found_welder:
-        print("✓ SUCCESS: The Scout found 'Finn Kelly' based on feedback!")
+    # Wait for re-sourcing
+    print("... Polling for re-sourcing (RAG update) ...")
+    for i in range(15):
+        detail_res = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
+        candidates = detail_res.json().get("state", {}).get("candidates", [])
+        if any("Welding" in str(c.get("skills", [])) for c in candidates):
+            print("✓ SUCCESS: The Scout found 'Finn Kelly' via RAG update!")
+            break
+        print(f"    [Poll {i+1}] Waiting for updated candidates pool...")
+        time.sleep(3)
     else:
-        print("⚠ FAILURE: The Scout ignored the rejection feedback.")
+        print("⚠ FAILURE: RAG failed to adjust to rejection feedback.")
 
 if __name__ == "__main__":
     test_jd_rejection_loop()
-    # test_shortlist_rejection_loop() # Disabled for now to focus on the FIRST loop
+    print("\n" + "="*50)
+    test_shortlist_rejection_loop()

@@ -9,6 +9,7 @@ const navItems = [
     { href: "/analytics", label: "Analytics", icon: "📈" },
     { href: "/kanban", label: "Kanban Board", icon: "🗂️" },
     { href: "/jobs", label: "Jobs", icon: "💼" },
+    { href: "/insights", label: "Agent Insights", icon: "🧠" },
     { href: "/candidates", label: "Candidates", icon: "👥" },
     { href: "/approvals", label: "Approvals", icon: "✅" },
     { href: "/interviews", label: "Interviews", icon: "🎙️" },

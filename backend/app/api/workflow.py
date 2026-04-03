@@ -35,7 +35,7 @@ async def approve(
 ):
     """Approve the current HITL gate and resume the workflow (HR only)."""
     result = await approve_stage(db, job_id, feedback=req.feedback, updated_jd=req.updated_jd)
-    if "error" in result and result.get("status") != "running":
+    if result.get("error") and result.get("status") != "running":
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
@@ -54,7 +54,7 @@ async def reject(
             detail="Feedback is required for rejection"
         )
     result = await reject_stage(db, job_id, feedback=req.feedback)
-    if "error" in result and result.get("status") != "running":
+    if result.get("error") and result.get("status") != "running":
         raise HTTPException(status_code=400, detail=result["error"])
     return result
 
