@@ -22,9 +22,16 @@ export function Skeleton({ width = "100%", height = "100%", borderRadius = "8px"
     );
 }
 
-export function CardSkeleton() {
+export function CardSkeleton({ height = "200px", style }: { height?: string | number, style?: React.CSSProperties }) {
     return (
-        <div className="glass-card" style={{ padding: "24px", minHeight: "200px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div className="glass-card" style={{ 
+            padding: "24px", 
+            minHeight: typeof height === 'number' ? `${height}px` : height, 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "16px",
+            ...style
+        }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Skeleton width="60%" height="24px" />
                 <Skeleton width="15%" height="20px" borderRadius="10px" />

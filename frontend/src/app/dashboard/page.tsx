@@ -94,8 +94,10 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [health, setHealth] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     loadData();
   }, []);
 
@@ -251,7 +253,8 @@ export default function DashboardPage() {
             <div className="glass-card stagger-3" style={{ padding: 24, height: 320 }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 20px" }}>Recruitment Velocity</h3>
               <div style={{ height: "calc(100% - 40px)", width: "100%" }}>
-                <ResponsiveContainer width="100%" height="100%">
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={velocityData}>
                     <defs>
                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
@@ -283,13 +286,17 @@ export default function DashboardPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                ) : (
+                  <CardSkeleton height="100%" />
+                )}
               </div>
             </div>
 
             <div className="glass-card stagger-3" style={{ padding: 24, height: 320 }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 20px" }}>Conversion Funnel</h3>
               <div style={{ height: "calc(100% - 40px)", width: "100%" }}>
-                <ResponsiveContainer width="100%" height="100%">
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={conversionData} layout="vertical" margin={{ left: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" stroke="rgba(255,255,255,0.5)" fontSize={11} axisLine={false} tickLine={false} width={80} />
@@ -308,6 +315,9 @@ export default function DashboardPage() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                ) : (
+                  <CardSkeleton height="100%" />
+                )}
               </div>
             </div>
           </div>
@@ -320,20 +330,24 @@ export default function DashboardPage() {
                    <span style={{ fontSize: "0.7rem", color: "var(--accent-emerald)", fontWeight: 600 }}>Avg: 91.4%</span>
                 </div>
                 <div style={{ height: "calc(100% - 40px)", width: "100%", display: "flex", justifyContent: "center" }}>
-                   <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart cx="50%" cy="50%" outerRadius="70%" data={agentAccuracyData}>
-                         <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                         <PolarAngleAxis dataKey="agent" stroke="rgba(255,255,255,0.5)" fontSize={10} />
-                         <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="rgba(255,255,255,0.2)" fontSize={8} />
-                         <Radar
-                            name="Agent Accuracy"
-                            dataKey="accuracy"
-                            stroke="var(--accent-purple)"
-                            fill="var(--accent-purple)"
-                            fillOpacity={0.4}
-                         />
-                      </RadarChart>
-                   </ResponsiveContainer>
+                   {mounted ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                       <RadarChart cx="50%" cy="50%" outerRadius="70%" data={agentAccuracyData}>
+                          <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                          <PolarAngleAxis dataKey="agent" stroke="rgba(255,255,255,0.5)" fontSize={10} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="rgba(255,255,255,0.2)" fontSize={8} />
+                          <Radar
+                             name="Agent Accuracy"
+                             dataKey="accuracy"
+                             stroke="var(--accent-purple)"
+                             fill="var(--accent-purple)"
+                             fillOpacity={0.4}
+                          />
+                       </RadarChart>
+                    </ResponsiveContainer>
+                   ) : (
+                    <CardSkeleton height="100%" />
+                   )}
                 </div>
              </div>
 
