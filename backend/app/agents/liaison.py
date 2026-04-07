@@ -1,125 +1,66 @@
 """Agent 2: The Liaison — Human-in-the-loop approval gatekeeper.
 
-Manages three critical approval checkpoints in the pipeline:
-1. JD Approval — after Agent 1 drafts the job description
-2. Shortlist Approval — after Agent 4 scores candidates
-3. Hire Decision Approval — after Agent 7 makes recommendations
-
-This agent pauses the workflow and waits for human input via the API.
+Manages three critical approval checkpoints in the pipeline by logging
+notices to the exact state and letting the orchestrator hit the breakpoint.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
-from app.models.state import RecruitmentState, PipelineStage
+from app.models.state import SharedState, PipelineStage
 
 
-def create_liaison():
-    """Create the Liaison (HITL gatekeeper) agent node function."""
+async def liaison_node(state: SharedState) -> SharedState:
+    """Check the current stage and set up the HITL gate.
+    Returns the state unmodified beyond adding Audit elements.
+    """
 
-    def liaison_node(state: RecruitmentState) -> dict:
-        """Check the current stage and set up the HITL gate.
+    current_stage = state.current_stage
 
-        The actual approval/rejection is handled by the API endpoint.
-        This node prepares the state for human review.
-        """
+    if current_stage == PipelineStage.JD_REVIEW.value:
+        state.log_audit(
+            agent="The Liaison",
+            action="ghosting_prevention_update",
+            details="Liaison Update: Notifying relevant parties that the Job Description is ready for review.",
+            stage=PipelineStage.JD_REVIEW.value
+        )
+        state.log_audit(
+            agent="The Liaison",
+            action="awaiting_jd_approval",
+            details="Job description is ready for human review",
+            stage=PipelineStage.JD_REVIEW.value
+        )
+            
+    elif current_stage == PipelineStage.SHORTLIST_REVIEW.value:
+        scored = state.scored_candidates
+        state.log_audit(
+            agent="The Liaison",
+            action="ghosting_prevention_update",
+            details=f"Liaison Update: Sending a 'Soft Pulse' update to {len(scored)} candidates. Informing them that shortlisting is underway to prevent ghosting.",
+            stage=PipelineStage.SHORTLIST_REVIEW.value
+        )
+        state.log_audit(
+            agent="The Liaison",
+            action="awaiting_shortlist_approval",
+            details=f"Shortlist of {len(scored)} scored candidates ready for review",
+            stage=PipelineStage.SHORTLIST_REVIEW.value
+        )
 
-        current_stage = state.get("current_stage", "")
-        audit_entries = []
+    elif current_stage == PipelineStage.HIRE_REVIEW.value:
+        recs = state.final_recommendations
+        state.log_audit(
+            agent="The Liaison",
+            action="ghosting_prevention_update",
+            details="Liaison Update: Proactively updating high-potential candidates that final deliberations are in progress. Maintaining high engagement.",
+            stage=PipelineStage.HIRE_REVIEW.value
+        )
+        state.log_audit(
+            agent="The Liaison",
+            action="awaiting_hire_decision",
+            details=f"Final recommendations for {len(recs)} candidates ready for review",
+            stage=PipelineStage.HIRE_REVIEW.value
+        )
 
-        if current_stage == PipelineStage.JD_REVIEW.value:
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "ghosting_prevention_update",
-                "details": "Liaison Update: Notifying relevant parties that the Job Description is ready for review. Ensuring no delays in the intake process.",
-                "stage": PipelineStage.JD_REVIEW.value,
-            })
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "awaiting_jd_approval",
-                "details": "Job description is ready for human review",
-                "stage": PipelineStage.JD_REVIEW.value,
-            })
-            return {
-                "current_stage": PipelineStage.JD_REVIEW.value,
-                "audit_log": audit_entries,
-            }
-
-        elif current_stage == PipelineStage.SHORTLIST_REVIEW.value:
-            scored = state.get("scored_candidates", [])
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "ghosting_prevention_update",
-                "details": f"Liaison Update: Sending a 'Soft Pulse' update to {len(scored)} candidates. Informing them that shortlisting is underway to prevent ghosting.",
-                "stage": PipelineStage.SHORTLIST_REVIEW.value,
-            })
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "awaiting_shortlist_approval",
-                "details": f"Shortlist of {len(scored)} scored candidates ready for review",
-                "stage": PipelineStage.SHORTLIST_REVIEW.value,
-            })
-            return {
-                "current_stage": PipelineStage.SHORTLIST_REVIEW.value,
-                "audit_log": audit_entries,
-            }
-
-        elif current_stage == PipelineStage.HIRE_REVIEW.value:
-            recs = state.get("final_recommendations", [])
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "ghosting_prevention_update",
-                "details": "Liaison Update: Proactively updating high-potential candidates that final deliberations are in progress. Maintaining high engagement.",
-                "stage": PipelineStage.HIRE_REVIEW.value,
-            })
-            audit_entries.append({
-                "timestamp": datetime.now().isoformat(),
-                "agent": "The Liaison",
-                "action": "awaiting_hire_decision",
-                "details": f"Final recommendations for {len(recs)} candidates ready for review",
-                "stage": PipelineStage.HIRE_REVIEW.value,
-            })
-            return {
-                "current_stage": PipelineStage.HIRE_REVIEW.value,
-                "audit_log": audit_entries,
-            }
-
-        return {"audit_log": audit_entries}
-
-    return liaison_node
-
-
-def check_jd_approval(state: RecruitmentState) -> str:
-    """Conditional edge: route based on JD approval status."""
-    approval = state.get("jd_approval", "pending")
-    if approval == "approved":
-        return "approved"
-    elif approval == "rejected":
-        return "rejected"
-    return "pending"
-
-
-def check_shortlist_approval(state: RecruitmentState) -> str:
-    """Conditional edge: route based on shortlist approval status."""
-    approval = state.get("shortlist_approval", "pending")
-    if approval == "approved":
-        return "approved"
-    elif approval == "rejected":
-        return "rejected"
-    return "pending"
-
-
-def check_hire_approval(state: RecruitmentState) -> str:
-    """Conditional edge: route based on hire decision approval status."""
-    approval = state.get("hire_approval", "pending")
-    if approval == "approved":
-        return "approved"
-    elif approval == "rejected":
-        return "rejected"
-    return "pending"
+    return state

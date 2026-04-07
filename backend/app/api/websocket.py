@@ -55,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
 
     # Send initial state
     with SessionLocal() as db:
-        from app.graph.workflow import get_workflow_status
+        from app.core.orchestrator import get_workflow_status
         status = get_workflow_status(db, job_id)
     await websocket.send_json({
         "type": "connected",
@@ -86,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
 
             # Poll for pipeline state changes
             with SessionLocal() as db:
-                from app.graph.workflow import get_workflow_status
+                from app.core.orchestrator import get_workflow_status
                 current_status = get_workflow_status(db, job_id)
             if current_status:
                 current_stage = current_status.get("current_stage", "")

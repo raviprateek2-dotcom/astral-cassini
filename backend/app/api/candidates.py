@@ -6,9 +6,12 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from typing import Annotated
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from sqlalchemy.orm import Session
 
-from app.graph.workflow import get_workflow_status
+from app.core.database import get_db
+from app.core.orchestrator import get_workflow_status
 from app.rag.parser import parse_resume_pdf, parse_resume_text
 from app.rag.embeddings import index_resume, get_collection_count
 
@@ -18,9 +21,12 @@ UPLOAD_DIR = Path("data/uploads")
 
 
 @router.get("/jobs/{job_id}/candidates")
-async def get_candidates(job_id: str):
+async def get_candidates(
+    job_id: str,
+    db: Annotated[Session, Depends(get_db)],
+):
     """Get matched candidates for a job."""
-    status = get_workflow_status(job_id)
+    status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 

@@ -1,54 +1,64 @@
 /**
  * useWebSocket — React hook for real-time pipeline event subscription.
+ * Integrates with useJobStore to provide global state updates.
  */
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useJobStore } from "@/store/useJobStore";
 
 export interface PipelineEvent {
     type: string;
     job_id: string;
-    data: Record<string, any>;
+    data: any;
 }
 
 export function useWebSocket(jobId: string | null) {
     const ws = useRef<WebSocket | null>(null);
     const [connected, setConnected] = useState(false);
-    const [events, setEvents] = useState<PipelineEvent[]>([]);
-    const [heartbeat, setHeartbeat] = useState<Record<string, any> | null>(null);
     const [tokenStream, setTokenStream] = useState<string>("");
-
-    const addEvent = useCallback((evt: PipelineEvent) => {
-        setEvents((prev) => [evt, ...prev].slice(0, 50)); // keep last 50
-    }, []);
+    
+    const updateJobStateFromSocket = useJobStore((state) => state.updateJobStateFromSocket);
 
     useEffect(() => {
         if (!jobId) {
-            setTokenStream(""); // reset on job change
+            setTokenStream(""); 
             return;
         }
 
         const socket = new WebSocket(`ws://localhost:8000/ws/${jobId}`);
         ws.current = socket;
 
-        socket.onopen = () => setConnected(true);
-        socket.onclose = () => setConnected(false);
+        socket.onopen = () => {
+            setConnected(true);
+            console.log(`WebSocket connected for job ${jobId}`);
+        };
+        
+        socket.onclose = () => {
+            setConnected(false);
+            console.log(`WebSocket disconnected for job ${jobId}`);
+        };
+        
         socket.onerror = () => setConnected(false);
 
         socket.onmessage = (msgEvent) => {
             try {
                 const evt: PipelineEvent = JSON.parse(msgEvent.data);
+                
                 if (evt.type === "heartbeat") {
-                    setHeartbeat(evt.data);
+                    // Update global store with latest job state
+                    updateJobStateFromSocket(evt.data);
                 } else if (evt.type === "stream_token") {
                     setTokenStream((prev) => prev + evt.data.token);
                 } else {
-                    addEvent(evt);
+                    // Other events like audit logs etc could be handled here if needed
+                    // updateJobStateFromSocket handles the main state merge
                 }
-            } catch { }
+            } catch (err) {
+                console.error("WS Message Error:", err);
+            }
         };
 
-        // Ping every 25s to keep connection alive
         const ping = setInterval(() => {
             if (socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({ type: "ping" }));
@@ -59,7 +69,7 @@ export function useWebSocket(jobId: string | null) {
             clearInterval(ping);
             socket.close();
         };
-    }, [jobId, addEvent]);
+    }, [jobId, updateJobStateFromSocket]);
 
-    return { connected, events, heartbeat, tokenStream, setTokenStream };
+    return { connected, tokenStream, setTokenStream };
 }

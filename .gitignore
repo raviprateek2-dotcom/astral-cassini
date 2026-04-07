@@ -1,0 +1,32 @@
+# Generic
+.DS_Store
+Thumbs.db
+
+# Project folders
+node_modules/
+dist/
+build/
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+
+# Local config
+.vscode/
+.idea/
+
+# Backend
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/*.db
+backend/*.log
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+frontend/out/

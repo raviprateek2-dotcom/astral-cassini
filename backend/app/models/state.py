@@ -1,7 +1,7 @@
 """Shared state schema for the recruitment pipeline.
 
-All 7 agents read from and write to this RecruitmentState.
-It flows through the LangGraph as the central data structure.
+All agents read from and write to this SharedState.
+It acts as the central data structure for the orchestrator.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -52,12 +52,13 @@ class CandidateProfile(BaseModel):
     name: str
     email: str = ""
     phone: str = ""
-    skills: list[str] = []
+    skills: list[str] = Field(default_factory=list)
     experience_years: int = 0
     education: str = ""
     resume_text: str = ""
     source: str = "vector_search"
     relevance_score: float = 0.0
+    match_reason: str = ""
 
 
 class ScoredCandidate(BaseModel):
@@ -69,9 +70,13 @@ class ScoredCandidate(BaseModel):
     experience_match: float = 0.0
     education_match: float = 0.0
     cultural_fit: float = 0.0
-    gaps: list[str] = []
-    strengths: list[str] = []
+    gaps: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
+    overqualification: list[str] = Field(default_factory=list)
     reasoning: str = ""
+    thought_process: str = ""
+    match_percentage: float = 0.0
 
 
 class Interview(BaseModel):
@@ -82,7 +87,7 @@ class Interview(BaseModel):
     interview_type: str = "technical"  # technical, behavioral, cultural
     scheduled_time: str = ""
     duration_minutes: int = 60
-    interviewers: list[str] = []
+    interviewers: list[str] = Field(default_factory=list)
     meeting_link: str = ""
     status: str = "scheduled"
 
@@ -96,9 +101,15 @@ class Assessment(BaseModel):
     problem_solving_score: float = 0.0
     cultural_fit_score: float = 0.0
     overall_score: float = 0.0
-    key_observations: list[str] = []
-    concerns: list[str] = []
+    key_observations: list[str] = Field(default_factory=list)
+    concerns: list[str] = Field(default_factory=list)
     transcript_summary: str = ""
+
+
+class SuggestedQuestion(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    questions: list[str] = Field(default_factory=list)
 
 
 class Recommendation(BaseModel):
@@ -111,7 +122,7 @@ class Recommendation(BaseModel):
     interview_weight: float = 0.0
     overall_weighted_score: float = 0.0
     reasoning: str = ""
-    risk_factors: list[str] = []
+    risk_factors: list[str] = Field(default_factory=list)
 
 
 class OutreachEmail(BaseModel):
@@ -145,76 +156,63 @@ class AuditEntry(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Reducer helpers for LangGraph
+# Main Shared State (Pydantic BaseModel instead of TypedDict for strictness)
 # ---------------------------------------------------------------------------
 
-def _merge_lists(existing: list, new: list) -> list:
-    """Append new items to existing list (LangGraph reducer)."""
-    return existing + new
-
-
-def _replace_value(existing: Any, new: Any) -> Any:
-    """Replace the existing value entirely (LangGraph reducer)."""
-    return new
-
-
-# ---------------------------------------------------------------------------
-# Main Recruitment State (TypedDict for LangGraph)
-# ---------------------------------------------------------------------------
-
-from typing import TypedDict
-
-
-class RecruitmentState(TypedDict, total=False):
-    """Shared state flowing through the entire LangGraph pipeline.
-
-    All agents read/write to this state. Reducers in the graph
-    handle how updates are merged.
-    """
-
+class SharedState(BaseModel):
+    """Strictly validated shared state replacing the loose LangGraph TypedDict."""
+    
     # --- Job Requisition (input) ---
-    job_id: str
-    job_title: str
-    department: str
-    requirements: list[str]
-    preferred_qualifications: list[str]
-    location: str
-    salary_range: str
+    job_id: str = ""
+    job_title: str = ""
+    department: str = ""
+    requirements: list[str] = Field(default_factory=list)
+    preferred_qualifications: list[str] = Field(default_factory=list)
+    location: str = "Remote"
+    salary_range: str = "Competitive"
 
     # --- Agent 1: JD Architect output ---
-    job_description: str
+    job_description: str = ""
 
     # --- Agent 2: Liaison HITL gates ---
-    jd_approval: str            # pending | approved | rejected
-    shortlist_approval: str     # pending | approved | rejected
-    hire_approval: str          # pending | approved | rejected
-    human_feedback: str         # free-text feedback from reviewer
+    jd_approval: str = "pending"            # pending | approved | rejected
+    shortlist_approval: str = "pending"     # pending | approved | rejected
+    hire_approval: str = "pending"          # pending | approved | rejected
+    human_feedback: str = ""                # free-text feedback from reviewer
 
     # --- Agent 3: Scout output ---
-    candidates: Annotated[list[dict], _merge_lists]      # list of CandidateProfile dicts
+    candidates: list[CandidateProfile] = Field(default_factory=list)
 
     # --- Agent 4: Screener output ---
-    scored_candidates: Annotated[list[dict], _merge_lists]   # list of ScoredCandidate dicts
+    scored_candidates: list[ScoredCandidate] = Field(default_factory=list)
 
     # --- Agent 5: Coordinator output ---
-    scheduled_interviews: Annotated[list[dict], _merge_lists]  # list of Interview dicts
+    scheduled_interviews: list[Interview] = Field(default_factory=list)
 
     # --- Agent 6: Interviewer output ---
-    interview_assessments: Annotated[list[dict], _merge_lists]  # list of Assessment dicts
-    interview_transcripts: Annotated[list[str], _merge_lists]   # raw transcripts for processing
-    suggested_questions: Annotated[list[dict], _merge_lists]    # list of {candidate_id, questions} dicts
+    interview_assessments: list[Assessment] = Field(default_factory=list)
+    interview_transcripts: list[str] = Field(default_factory=list)
+    suggested_questions: list[SuggestedQuestion] = Field(default_factory=list)
 
     # --- Agent 7: Decider output ---
-    final_recommendations: Annotated[list[dict], _merge_lists]  # list of Recommendation dicts
+    final_recommendations: list[Recommendation] = Field(default_factory=list)
 
     # --- Agent 5 & 6: Outreach & Engagement ---
-    outreach_emails: Annotated[list[dict], _merge_lists]       # list of OutreachEmail dicts
-    candidate_responses: Annotated[list[dict], _merge_lists]  # list of {candidate_id, response}
+    outreach_emails: list[OutreachEmail] = Field(default_factory=list)
+    candidate_responses: list[dict] = Field(default_factory=list)
 
     # --- Agent 10: Offer Generator ---
-    offer_details: Annotated[list[dict], _merge_lists]        # list of OfferRecord dicts
+    offer_details: list[OfferRecord] = Field(default_factory=list)
 
     # --- Pipeline metadata ---
-    current_stage: Annotated[str, _replace_value]
-    audit_log: Annotated[list[dict], _merge_lists]       # list of AuditEntry dicts
-    error: Annotated[str, _replace_value]                  # error message if any agent fails
+    current_stage: str = PipelineStage.INTAKE.value
+    audit_log: list[AuditEntry] = Field(default_factory=list)
+    error: str = ""
+
+    def log_audit(self, agent: str, action: str, details: str, stage: str):
+        self.audit_log.append(AuditEntry(
+            agent=agent,
+            action=action,
+            details=details,
+            stage=stage
+        ))

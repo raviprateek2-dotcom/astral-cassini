@@ -1,18 +1,42 @@
 /**
- * API client for PRO HR backend.
+ * API client for PRO HR backend using Axios.
  */
+import axios from 'axios';
 
 const API_BASE = ""; // Handled by Next.js rewrites in development
 
-let currentAuthToken = "";
+export const apiClient = axios.create({
+    baseURL: API_BASE,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
 
-// Initialize token from localStorage if available (client-side only)
-if (typeof window !== "undefined") {
-    currentAuthToken = localStorage.getItem("token") || "";
-}
+// Request interceptor to inject the token
+apiClient.interceptors.request.use((config) => {
+    if (typeof window !== "undefined") {
+        const token = localStorage.getItem("token");
+        if (token && config.headers) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+    }
+    return config;
+});
+
+// Response interceptor to handle unauth
+apiClient.interceptors.response.use(
+    (response) => response.data,
+    (error) => {
+        if (error.response?.status === 401 && typeof window !== 'undefined') {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            window.location.href = "/login";
+        }
+        return Promise.reject(new Error(error.response?.data?.detail || error.message || "API Error"));
+    }
+);
 
 export function setAuthToken(token: string) {
-    currentAuthToken = token;
     if (typeof window !== "undefined") {
         if (token) {
             localStorage.setItem("token", token);
@@ -22,39 +46,7 @@ export function setAuthToken(token: string) {
     }
 }
 
-async function fetchAPI(endpoint: string, options?: RequestInit) {
-    // Re-check localStorage in case another tab updated it, or token was set recently
-    if (typeof window !== "undefined" && !currentAuthToken) {
-        currentAuthToken = localStorage.getItem("token") || "";
-    }
-
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-    };
-    
-    if (currentAuthToken) {
-        headers["Authorization"] = `Bearer ${currentAuthToken}`;
-    }
-
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: { ...headers, ...options?.headers },
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        if (res.status === 401 && typeof window !== 'undefined') {
-            // Token expired or invalid
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            window.location.href = "/login";
-        }
-        throw new Error(err.detail || `API Error: ${res.status}`);
-    }
-    return res.json();
-}
-
-// --- Jobs ---
+// --- Types ---
 export interface CreateJobPayload {
     job_title: string;
     department: string;
@@ -72,72 +64,48 @@ export const api = {
         const formData = new URLSearchParams();
         formData.append("username", email);
         formData.append("password", password);
-
-        const res = await fetch(`${API_BASE}/api/auth/login`, {
-            method: "POST",
+        const res = await apiClient.post("/api/auth/login", formData, {
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded",
             },
-            body: formData,
         });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: "Login failed" }));
-            throw new Error(err.detail || "Login failed");
-        }
-        return res.json();
+        return res;
     },
 
     // Analytics
-    getAnalyticsDepartments: () => fetchAPI("/api/analytics/department_breakdown"),
-    getAnalyticsDashboard: () => fetchAPI("/api/analytics/dashboard"),
+    getAnalyticsDepartments: () => apiClient.get("/api/analytics/department_breakdown"),
+    getAnalyticsDashboard: () => apiClient.get("/api/analytics/dashboard"),
 
     // Jobs
-    createJob: (data: CreateJobPayload) =>
-        fetchAPI("/api/jobs", { method: "POST", body: JSON.stringify(data) }),
-    listJobs: () => fetchAPI("/api/jobs"),
-    getJob: (id: string) => fetchAPI(`/api/jobs/${id}`),
+    createJob: (data: CreateJobPayload) => apiClient.post("/api/jobs", data),
+    listJobs: () => apiClient.get("/api/jobs"),
+    getJob: (id: string) => apiClient.get(`/api/jobs/${id}`),
 
     // Workflow
     approveStage: (id: string, feedback = "", updatedJD?: string) =>
-        fetchAPI(`/api/workflow/${id}/approve`, {
-            method: "POST",
-            body: JSON.stringify({ feedback, updated_jd: updatedJD }),
-        }),
+        apiClient.post(`/api/workflow/${id}/approve`, { feedback, updated_jd: updatedJD }),
     rejectStage: (id: string, feedback: string) =>
-        fetchAPI(`/api/jobs/${id}/reject`, {
-            method: "POST",
-            body: JSON.stringify({ feedback }),
-        }),
-    getStatus: (id: string) => fetchAPI(`/api/jobs/${id}/status`),
-    getAudit: (id: string) => fetchAPI(`/api/jobs/${id}/audit`),
-    getInterviews: (id: string) => fetchAPI(`/api/jobs/${id}/interviews`),
-    getRecommendations: (id: string) => fetchAPI(`/api/jobs/${id}/recommendations`),
+        apiClient.post(`/api/workflow/${id}/reject`, { feedback }),
+    patchState: (id: string, action: string, stateUpdates: any = {}) => 
+        apiClient.patch(`/api/workflow/${id}/state`, { action, state_updates: stateUpdates }),
+    getStatus: (id: string) => apiClient.get(`/api/workflow/${id}/status`),
+    getAudit: (id: string) => apiClient.get(`/api/workflow/${id}/audit`),
+    getInterviews: (id: string) => apiClient.get(`/api/workflow/${id}/interviews`),
+    getRecommendations: (id: string) => apiClient.get(`/api/workflow/${id}/recommendations`),
 
     // Candidates
-    getCandidates: (jobId: string) => fetchAPI(`/api/jobs/${jobId}/candidates`),
-    getResumeCount: () => fetchAPI("/api/resumes/count"),
+    getCandidates: (jobId: string) => apiClient.get(`/api/jobs/${jobId}/candidates`),
+    getResumeCount: () => apiClient.get("/api/resumes/count"),
     uploadResume: async (jobId: string, file: File) => {
         const formData = new FormData();
         formData.append("file", file);
-
-        const res = await fetch(`${API_BASE}/api/jobs/${jobId}/resumes`, {
-            method: "POST",
-            headers: {
-                ...(currentAuthToken ? { "Authorization": `Bearer ${currentAuthToken}` } : {}),
-            },
-            body: formData,
+        return apiClient.post(`/api/jobs/${jobId}/resumes`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
         });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-            throw new Error(err.detail || "Upload failed");
-        }
-        return res.json();
     },
 
     // Health
-    health: () => fetchAPI("/api/health"),
+    health: () => apiClient.get("/api/health"),
 };
 
 // --- WebSocket ---
@@ -152,7 +120,6 @@ export function connectWebSocket(
 
     function connect() {
         if (isClosedManually) return;
-
         socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
@@ -171,19 +138,11 @@ export function connectWebSocket(
 
         socket.onclose = () => {
             if (isClosedManually) return;
-
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-            console.log(`WebSocket closed. Reconnecting in ${delay}ms... (Attempt ${reconnectAttempts + 1})`);
-
             setTimeout(() => {
                 reconnectAttempts++;
                 connect();
             }, delay);
-        };
-
-        socket.onerror = (err) => {
-            console.error("WebSocket error:", err);
-            socket?.close();
         };
     }
 
