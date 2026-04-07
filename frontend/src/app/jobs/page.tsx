@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { CreateJobPayload, api } from "@/lib/api";
 import { useJobStore } from "@/store/useJobStore";
+import {
+    auditLogEntriesFromUnknown,
+    type AuditLogEntry,
+    type CandidateLike,
+    type WorkflowBlob,
+} from "@/types/domain";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { toast } from "sonner";
 import { AgentThinking } from "@/components/AgentThinking";
@@ -16,7 +22,20 @@ import { CardSkeleton, TableSkeleton } from "@/components/Skeleton";
 import JDEditor from "@/components/JDEditor";
 import { ChevronLeft, Plus, Send, CheckCircle, XCircle } from "lucide-react";
 
-export default function JobsPage() {
+function candidateListFromState(value: unknown): CandidateLike[] {
+    if (!Array.isArray(value)) return [];
+    return value as CandidateLike[];
+}
+
+function auditLogForJob(
+    job: { audit_log?: AuditLogEntry[]; state?: WorkflowBlob } | null
+): AuditLogEntry[] {
+    if (!job) return [];
+    if (Array.isArray(job.audit_log)) return job.audit_log;
+    return auditLogEntriesFromUnknown(job.state?.audit_log);
+}
+
+function JobsPageContent() {
     const { 
         currentJob, 
         jobsList, 
@@ -33,7 +52,7 @@ export default function JobsPage() {
 
     const [showForm, setShowForm] = useState(false);
     const [creationLoading, setCreationLoading] = useState(false);
-    const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+    const [selectedCandidate, setSelectedCandidate] = useState<CandidateLike | null>(null);
     const [jdDraft, setJdDraft] = useState("");
 
     // Form Local State
@@ -46,7 +65,6 @@ export default function JobsPage() {
         salary_range: "",
     });
     const [reqInput, setReqInput] = useState("");
-    const [prefInput, setPrefInput] = useState("");
 
     // WebSocket hook integrates with the store
     const { connected, tokenStream } = useWebSocket(currentJob?.job_id || null);
@@ -59,8 +77,9 @@ export default function JobsPage() {
     }, [fetchJobsList, fetchJobDetails, jobIdParam]);
 
     useEffect(() => {
-        if (currentJob?.state?.job_description) {
-            setJdDraft(currentJob.state.job_description);
+        const maybeDraft = currentJob?.state?.job_description;
+        if (typeof maybeDraft === "string" && maybeDraft.length > 0) {
+            setJdDraft(maybeDraft);
         }
     }, [currentJob?.state?.job_description]);
 
@@ -68,15 +87,16 @@ export default function JobsPage() {
         e.preventDefault();
         setCreationLoading(true);
         try {
-            const data: any = await api.createJob(form);
+            const data = await api.createJob(form);
             setShowForm(false);
             toast.success("Job Requisition Initialized", {
                 description: "Deterministic pipeline has been triggered."
             });
             await fetchJobDetails(data.job_id);
             fetchJobsList();
-        } catch (err: any) {
-            toast.error("Initialization Failed", { description: err.message });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Unknown error";
+            toast.error("Initialization Failed", { description: message });
         } finally {
             setCreationLoading(false);
         }
@@ -167,14 +187,14 @@ export default function JobsPage() {
                                     <TableSkeleton rows={8} />
                                 ) : (
                                     <>
-                                        <CandidateTable 
+                                        <CandidateTable
                                             candidates={
-                                                stage === "hire_review" || stage === "completed" 
-                                                    ? currentJob.state.final_recommendations 
+                                                stage === "hire_review" || stage === "completed"
+                                                    ? candidateListFromState(currentJob.state.final_recommendations)
                                                     : stage === "shortlist_review" || stage === "interviewing" || stage === "decision"
-                                                        ? currentJob.state.scored_candidates
-                                                        : currentJob.state.candidates
-                                            } 
+                                                        ? candidateListFromState(currentJob.state.scored_candidates)
+                                                        : candidateListFromState(currentJob.state.candidates)
+                                            }
                                             onRowClick={setSelectedCandidate}
                                             stage={stage}
                                         />
@@ -213,7 +233,7 @@ export default function JobsPage() {
 
                     {/* Right Sidebar: Logs Panel */}
                     <div style={{ position: "sticky", top: "24px", height: "calc(100vh - 150px)" }}>
-                        <AuditTimeline logs={currentJob.state?.audit_log || []} />
+                        <AuditTimeline logs={auditLogForJob(currentJob)} />
                     </div>
                 </div>
 
@@ -329,7 +349,9 @@ export default function JobsPage() {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 4 }}>Last Activity</div>
-                                        <div style={{ fontWeight: 700 }}>{new Date(job.created_at).toLocaleDateString()}</div>
+                                                    <div style={{ fontWeight: 700 }}>
+                                                        {job.created_at ? new Date(job.created_at).toLocaleDateString() : "-"}
+                                                    </div>
                                     </div>
                                 </div>
                             </div>
@@ -343,5 +365,13 @@ export default function JobsPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function JobsPage() {
+    return (
+        <Suspense fallback={<div className="spinner" style={{ margin: "100px auto" }} />}>
+            <JobsPageContent />
+        </Suspense>
     );
 }

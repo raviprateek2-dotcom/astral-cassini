@@ -8,7 +8,7 @@ import tempfile
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, RequireHR
@@ -30,7 +30,7 @@ class CreateJobRequest(BaseModel):
     job_title: str
     department: str
     requirements: list[str]
-    preferred_qualifications: list[str] = []
+    preferred_qualifications: list[str] = Field(default_factory=list)
     location: str = "Remote"
     salary_range: str = "Competitive"
 
@@ -40,7 +40,7 @@ class JobResponse(BaseModel):
     job_id: str
     status: str
     current_stage: str
-    state: dict = {}
+    state: dict = Field(default_factory=dict)
     error: str = ""
 
 
@@ -95,7 +95,15 @@ async def upload_resume(
     current_user: Annotated[User, RequireHR],
     file: UploadFile = File(...),
 ):
-    """Upload a candidate resume for a specific job requisition."""
+    """Upload and index a resume for a job (**preferred** dashboard path).
+
+    Constraints: **PDF only**; allowed only while the workflow is in ``sourcing`` or
+    ``screening`` (see ``current_stage``). Indexes into the shared FAISS store via
+    ``index_resume``.
+
+    Deprecated utility ``POST /api/resumes/upload`` (see ``candidates.py``) remains for
+    job-agnostic indexing only when you intentionally skip job context.
+    """
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")

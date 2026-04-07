@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Play, RotateCcw, FastForward, Loader2 } from 'lucide-react';
 import { useJobStore } from '@/store/useJobStore';
+import type { WorkflowBlob } from "@/types/domain";
 
 export function ControlPanel() {
     const { currentJob, forceRunAgent, loading } = useJobStore();
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const handleAction = async (action: string, updates: any = {}) => {
+    const handleAction = async (action: string, updates: WorkflowBlob = {}) => {
         setActionLoading(action);
         await forceRunAgent(action, updates);
         setActionLoading(null);

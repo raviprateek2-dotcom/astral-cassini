@@ -1,0 +1,4 @@
+# Lint / type-check only (CI and optional local). Not required to run the API.
+# Install: pip install -r requirements-tools.txt
+ruff==0.15.9
+mypy==1.20.0

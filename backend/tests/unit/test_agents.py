@@ -1,8 +1,11 @@
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+
+pytestmark = pytest.mark.unit
+
+from unittest.mock import patch, MagicMock
 from app.agents.jd_architect import jd_architect_node
 from app.agents.screener import screener_node
-from app.models.state import SharedState, PipelineStage, ApprovalStatus, CandidateProfile
+from app.models.state import PipelineStage, ApprovalStatus, CandidateProfile
 
 @pytest.mark.asyncio
 async def test_jd_architect_node_basic(mock_state):

@@ -11,7 +11,7 @@ Tables:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, Text, Boolean,
     DateTime, ForeignKey, JSON,
@@ -19,6 +19,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -32,7 +36,7 @@ class User(Base):
     # roles: admin | hr_manager | business_lead | viewer
     department = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     last_login = Column(DateTime, nullable=True)
 
     jobs = relationship("Job", back_populates="created_by")
@@ -68,8 +72,8 @@ class Job(Base):
     # Metadata
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by = relationship("User", back_populates="jobs")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     completed_at = Column(DateTime, nullable=True)
 
     # Relationships
@@ -102,7 +106,7 @@ class CandidateScore(Base):
     overqualification = Column(JSON, default=list)
     reasoning = Column(Text, default="")
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     job = relationship("Job", back_populates="scores")
 
 
@@ -128,7 +132,7 @@ class Interview(Base):
     key_observations = Column(JSON, default=list)
     concerns = Column(JSON, default=list)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     job = relationship("Job", back_populates="interviews")
 
 
@@ -141,7 +145,7 @@ class AuditEvent(Base):
     action = Column(String(100), nullable=False)
     details = Column(Text, default="")
     stage = Column(String(50), default="")
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)
 
     job = relationship("Job", back_populates="audit_events")
 
@@ -161,7 +165,7 @@ class Recommendation(Base):
     reasoning = Column(Text, default="")
     risk_factors = Column(JSON, default=list)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     job = relationship("Job", back_populates="recommendations")
 
 
@@ -177,7 +181,7 @@ class Outreach(Base):
     response_text = Column(Text, nullable=True)
     engagement_level = Column(String(50), default="High")  # High | Medium | Low
     status = Column(String(50), default="sent")  # sent | responding | scheduled
-    sent_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=utc_now)
 
     job = relationship("Job", back_populates="outreach")
 
@@ -193,6 +197,6 @@ class Offer(Base):
     salary_offered = Column(String(100))
     status = Column(String(50), default="draft")  # draft | sent | accepted | rejected
     valid_until = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     job = relationship("Job", back_populates="offers")

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, User, Outreach, Offer
+from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, Outreach, Offer
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
@@ -99,12 +98,11 @@ async def department_breakdown(
                 for dept, count in jobs
             ]
         }
-    except Exception as e:
-        import traceback
-        logging.error(f"Dept Breakdown Error: {traceback.format_exc()}")
+    except Exception:
+        logging.exception("Dept Breakdown Error")
         raise HTTPException(
             status_code=500,
-            detail=f"Dept Breakdown Internal Error: {str(e)}\n{traceback.format_exc()}"
+            detail="Internal server error"
         )
 
 
@@ -153,7 +151,7 @@ async def job_roi(
 
     state = job.workflow_state or {}
     candidates_count = len(state.get("candidates", []))
-    scored_count = len(state.get("scored_candidates", []))
+    len(state.get("scored_candidates", []))
     interviews_count = len(state.get("scheduled_interviews", []))
 
     # ROI Formula (Industry benchmarks)
@@ -274,12 +272,11 @@ async def get_full_dashboard(
             "time_to_hire": time_data,
             "recent": recent_data
         }
-    except Exception as e:
-        import traceback
-        logging.error(f"Dashboard Error: {traceback.format_exc()}")
+    except Exception:
+        logging.exception("Dashboard Error")
         raise HTTPException(
             status_code=500,
-            detail=f"Dashboard Internal Error: {str(e)}\n{traceback.format_exc()}"
+            detail="Internal server error"
         )
 
 

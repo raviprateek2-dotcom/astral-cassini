@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -9,10 +9,9 @@ type LoginStep = "identify" | "authenticate" | "processing" | "success";
 export default function LoginPage() {
     const router = useRouter();
     const [step, setStep] = useState<LoginStep>("identify");
-    const [email, setEmail] = useState("hr@prohr.ai");
-    const [password, setPassword] = useState("hr123");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [error, setError] = useState("");
-    const [isAuthenticating, setIsAuthenticating] = useState(false);
     const [terminalLines, setTerminalLines] = useState<string[]>([]);
 
     const addTerminalLine = (line: string, delay: number) => {
@@ -36,12 +35,11 @@ export default function LoginPage() {
 
         if (step === "authenticate") {
             if (!password) { setError("Password is required"); return; }
-            setIsAuthenticating(true);
             setStep("processing");
             setTerminalLines(["> Initializing Agent Core v4.0..."]);
 
             try {
-                await addTerminalLine("> Establishing secure LangGraph connection...", 400);
+                await addTerminalLine("> Establishing secure orchestration channel...", 400);
                 await addTerminalLine("> Verifying RSA-4096 Identity matrix...", 600);
                 await addTerminalLine("> Pinging Liaison Agent...", 300);
 
@@ -51,20 +49,18 @@ export default function LoginPage() {
                 await addTerminalLine("> Synchronizing local vector stores...", 500);
                 await addTerminalLine(`> Hello, ${data.user.full_name.split(' ')[0]}. Booting dashboard...`, 300);
 
-                localStorage.setItem("token", data.access_token);
                 localStorage.setItem("user", JSON.stringify(data.user));
-                api.setToken(data.access_token);
 
                 setTimeout(() => setStep("success"), 600);
                 setTimeout(() => router.push("/dashboard"), 1500);
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 await addTerminalLine("> [CRITICAL ERROR] Authentication failure.", 100);
                 await addTerminalLine("> Details: Access Denied by Hive Guard.", 100);
                 setTimeout(() => {
-                    setError(err.message || "Security Clearance Denied");
+                    const message = err instanceof Error ? err.message : "Security Clearance Denied";
+                    setError(message);
                     setStep("authenticate");
-                    setIsAuthenticating(false);
                     setTerminalLines([]);
                 }, 1500);
             }
@@ -223,15 +219,6 @@ export default function LoginPage() {
                                 {step === "identify" ? "Continue Identification" : "Initiate Secure Protocol"}
                             </button>
 
-                            {step === "identify" && (
-                                <div style={{ marginTop: 32, textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 24 }}>
-                                    <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Pre-configured Access Levels</p>
-                                    <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
-                                        <button type="button" onClick={() => { setEmail("admin@prohr.ai"); setPassword("admin123"); }} style={{ background: "none", border: "1px solid var(--accent-blue)", color: "var(--accent-blue)", padding: "4px 10px", borderRadius: 6, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer" }}>Admin</button>
-                                        <button type="button" onClick={() => { setEmail("hr@prohr.ai"); setPassword("hr123"); }} style={{ background: "none", border: "1px solid var(--accent-amber)", color: "var(--accent-amber)", padding: "4px 10px", borderRadius: 6, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer" }}>HR Manager</button>
-                                    </div>
-                                </div>
-                            )}
                         </form>
                     )}
 

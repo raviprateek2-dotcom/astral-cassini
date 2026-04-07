@@ -1,12 +1,11 @@
 """Agent 3: The Scout — Semantic resume search using RAG.
 
-Performs semantic search across the ChromaDB vector store using
+Performs semantic search over the FAISS vector index (LangChain) using
 the job description as the query to find top-matching candidates.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
 import uuid
 from app.models.state import SharedState, PipelineStage, CandidateProfile

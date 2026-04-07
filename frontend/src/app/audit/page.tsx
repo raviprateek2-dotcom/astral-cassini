@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import type { AuditLogEntry, JobListItem } from "@/types/domain";
 
 const agentColors: Record<string, string> = {
     "System": "var(--text-muted)",
@@ -28,9 +29,9 @@ const agentIcons: Record<string, string> = {
 };
 
 export default function AuditPage() {
-    const [jobs, setJobs] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
-    const [auditLog, setAuditLog] = useState<any[]>([]);
+    const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -86,7 +87,9 @@ export default function AuditPage() {
                             }}
                         />
 
-                        {auditLog.map((entry, i) => (
+                        {auditLog.map((entry, i) => {
+                            const agentLabel = entry.agent ?? "System";
+                            return (
                             <div
                                 key={i}
                                 className="fade-in"
@@ -109,11 +112,11 @@ export default function AuditPage() {
                                         alignItems: "center",
                                         justifyContent: "center",
                                         fontSize: "0.75rem",
-                                        background: `${agentColors[entry.agent] || "var(--text-muted)"}20`,
-                                        border: `2px solid ${agentColors[entry.agent] || "var(--text-muted)"}`,
+                                        background: `${agentColors[agentLabel] || "var(--text-muted)"}20`,
+                                        border: `2px solid ${agentColors[agentLabel] || "var(--text-muted)"}`,
                                     }}
                                 >
-                                    {agentIcons[entry.agent] || "•"}
+                                    {agentIcons[agentLabel] || "•"}
                                 </div>
 
                                 {/* Content */}
@@ -130,10 +133,10 @@ export default function AuditPage() {
                                             style={{
                                                 fontWeight: 600,
                                                 fontSize: "0.85rem",
-                                                color: agentColors[entry.agent] || "var(--text-primary)",
+                                                color: agentColors[agentLabel] || "var(--text-primary)",
                                             }}
                                         >
-                                            {entry.agent}
+                                            {agentLabel}
                                         </span>
                                         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
                                             {entry.timestamp ? new Date(entry.timestamp).toLocaleString("en-IN", {
@@ -159,7 +162,8 @@ export default function AuditPage() {
                                     )}
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}

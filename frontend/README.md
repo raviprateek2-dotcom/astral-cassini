@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PRO HR Frontend
 
-## Getting Started
+Next.js + React + TypeScript frontend for the PRO HR recruitment platform.
 
-First, run the development server:
+## Prerequisites
+
+- Node.js 20+
+- Backend API running (default: `http://127.0.0.1:8000`)
+
+## Environment Setup
+
+Copy `.env.example` to `.env.local` and update values as needed:
+
+- `NEXT_PUBLIC_API_URL`: Optional absolute API base URL. Leave empty to use local `/api` rewrites.
+- `NEXT_PUBLIC_WS_URL`: WebSocket base URL (default `ws://localhost:8000`).
+- `BACKEND_URL`: Backend base used by Next.js rewrites in local development.
+
+## Run Locally
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend runs on `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - Start development server
+- `npm run build` - Create production build
+- `npm run start` - Run production server
+- `npm run lint` - Run ESLint
+- `npm test` - Run Jest unit/component tests
+- `npm run test:e2e` - Run Playwright E2E (starts Next automatically; use `CI=true` for production `next start`, otherwise `next dev`)
+- `npm run test:e2e:ui` - Playwright UI mode
 
-## Learn More
+### E2E setup (first time)
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx playwright install chromium
+npm run build   # required when running E2E with CI=true (matches GitHub Actions)
+npm run test:e2e
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Smoke tests live in `e2e/`. They do not require the backend; you may see Next.js rewrite warnings if nothing is listening on port 8000.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Authentication Notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Browser session**: Login sets an **HTTP-only `access_token` cookie** (JWT); `axios` is configured with `withCredentials: true` so authenticated API calls use the cookie.
+- **WebSockets**: Before opening **`/ws/{job_id}`**, the client calls **`GET /api/auth/ws-ticket?job_id=`** (cookie auth) and passes the returned short-lived **ticket** as the `token` query param (`connectWebSocket` in `@/lib/api`). The login JSON `access_token` is not used for WS.
+- Do not embed static credentials in UI defaults.

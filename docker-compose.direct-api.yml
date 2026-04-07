@@ -1,0 +1,17 @@
+# Override: axios in the browser calls the API directly on the host-published port.
+# Use when you prefer not to proxy /api through Next (e.g. debugging CORS).
+# Login cookies: localhost cookies are generally shared across ports for the same host,
+# but same-origin /api (default compose) is still the safer default for production-like setups.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.direct-api.yml up --build
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_URL: http://backend:8000
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000

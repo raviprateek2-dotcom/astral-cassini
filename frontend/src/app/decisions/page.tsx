@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import type { JobListItem, RecommendationRow } from "@/types/domain";
 
 export default function DecisionsPage() {
-    const [jobs, setJobs] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
-    const [recs, setRecs] = useState<any[]>([]);
+    const [recs, setRecs] = useState<RecommendationRow[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -45,24 +46,30 @@ export default function DecisionsPage() {
 
             {recs.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    {recs.map((r, i) => (
+                    {recs.map((r, i) => {
+                        const decision = typeof r.decision === "string" ? r.decision : "";
+                        const confidence = Number(r.confidence ?? 0);
+                        const riskFactors = Array.isArray(r.risk_factors)
+                            ? r.risk_factors.filter((rf): rf is string => typeof rf === "string")
+                            : [];
+                        return (
                         <div key={i} className="glass-card fade-in" style={{ padding: 28 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                                 <div>
                                     <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 700 }}>{r.candidate_name}</h2>
                                     <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
-                                        ID: {r.candidate_id}
+                                        ID: {String(r.candidate_id ?? "")}
                                     </p>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <span className={`badge ${r.decision === "hire" ? "badge-emerald" :
-                                            r.decision === "maybe" ? "badge-amber" : "badge-rose"
+                                    <span className={`badge ${decision === "hire" ? "badge-emerald" :
+                                            decision === "maybe" ? "badge-amber" : "badge-rose"
                                         }`} style={{ fontSize: "0.9rem", padding: "8px 20px" }}>
-                                        {r.decision === "hire" ? "✅ HIRE" :
-                                            r.decision === "maybe" ? "🤔 MAYBE" : "❌ NO HIRE"}
+                                        {decision === "hire" ? "✅ HIRE" :
+                                            decision === "maybe" ? "🤔 MAYBE" : "❌ NO HIRE"}
                                     </span>
                                     <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
-                                        Confidence: <strong>{Math.round(r.confidence)}%</strong>
+                                        Confidence: <strong>{Math.round(confidence)}%</strong>
                                     </p>
                                 </div>
                             </div>
@@ -75,19 +82,19 @@ export default function DecisionsPage() {
                                 <div style={{ textAlign: "center" }}>
                                     <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: "0 0 4px", textTransform: "uppercase" }}>Screening (40%)</p>
                                     <p style={{ fontSize: "1.5rem", fontWeight: 800, margin: 0, color: "var(--accent-blue)" }}>
-                                        {Math.round(r.screening_weight || 0)}
+                                        {Math.round(Number(r.screening_weight ?? 0))}
                                     </p>
                                 </div>
                                 <div style={{ textAlign: "center" }}>
                                     <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: "0 0 4px", textTransform: "uppercase" }}>Interview (60%)</p>
                                     <p style={{ fontSize: "1.5rem", fontWeight: 800, margin: 0, color: "var(--accent-purple)" }}>
-                                        {Math.round(r.interview_weight || 0)}
+                                        {Math.round(Number(r.interview_weight ?? 0))}
                                     </p>
                                 </div>
                                 <div style={{ textAlign: "center" }}>
                                     <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: "0 0 4px", textTransform: "uppercase" }}>Weighted Total</p>
                                     <p style={{ fontSize: "1.5rem", fontWeight: 800, margin: 0, color: "var(--accent-emerald)" }}>
-                                        {Math.round(r.overall_weighted_score || 0)}
+                                        {Math.round(Number(r.overall_weighted_score ?? 0))}
                                     </p>
                                 </div>
                             </div>
@@ -98,25 +105,26 @@ export default function DecisionsPage() {
                                     💡 Reasoning
                                 </h3>
                                 <p style={{ fontSize: "0.85rem", lineHeight: 1.7, color: "var(--text-secondary)", margin: 0 }}>
-                                    {r.reasoning}
+                                    {typeof r.reasoning === "string" ? r.reasoning : ""}
                                 </p>
                             </div>
 
                             {/* Risk Factors */}
-                            {(r.risk_factors || []).length > 0 && (
+                            {riskFactors.length > 0 && (
                                 <div>
                                     <h3 style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--accent-amber)", margin: "0 0 8px" }}>
                                         ⚠️ Risk Factors
                                     </h3>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                        {r.risk_factors.map((rf: string, j: number) => (
+                                        {riskFactors.map((rf, j) => (
                                             <span key={j} className="badge badge-amber">{rf}</span>
                                         ))}
                                     </div>
                                 </div>
                             )}
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

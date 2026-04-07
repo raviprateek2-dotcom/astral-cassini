@@ -1,3 +1,7 @@
+"""Minimal LangGraph experiment (not used by production orchestrator).
+
+Requires optional deps: pip install -r requirements-dev.txt
+"""
 import asyncio
 import uuid
 from typing import Annotated, Any, TypedDict

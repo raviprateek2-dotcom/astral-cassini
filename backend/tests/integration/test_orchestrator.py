@@ -1,6 +1,8 @@
 import pytest
-import asyncio
-from unittest.mock import patch, AsyncMock
+
+pytestmark = pytest.mark.integration
+
+from unittest.mock import patch
 from app.models.state import SharedState, PipelineStage, ApprovalStatus, CandidateProfile
 from app.models.db_models import Job
 from app.core.orchestrator import Orchestrator, start_workflow, resume_workflow
@@ -60,7 +62,7 @@ async def test_hitl_approval_halt(db):
 
 @pytest.mark.asyncio
 async def test_resume_workflow_approval(db):
-    """Test full approval flow: intake -> drafting -> review -> approved -> sourcing."""
+    """JD approve moves to sourcing; mocked scout/screener advance to shortlist HITL without LLM calls."""
     
     job_id = "full-test"
     # Starting from drafting
@@ -68,45 +70,46 @@ async def test_resume_workflow_approval(db):
     job_id = result["job_id"]
     db.commit()
     
-    # Mocking agents to move state forward instantly
-    with patch("app.agents.jd_architect.jd_architect_node") as mock_jd:
-        mock_jd.return_value = SharedState(
-            job_id=job_id, 
+    # Mocking agents to move state forward instantly (patch where orchestrator holds the reference)
+    from app.core.orchestrator import _run_orchestration_task
+    with patch("app.core.orchestrator.jd_architect_node") as mock_jd_node:
+        mock_jd_node.return_value = SharedState(
+            job_id=job_id,
             current_stage=PipelineStage.JD_REVIEW.value,
-            job_description="Perfect JD text."
+            job_description="Mocked JD",
         )
-        
-        # This will run drafting - ensure it doesn't hit OpenAI
-        from app.core.orchestrator import _run_orchestration_task
-        with patch("app.agents.jd_architect.jd_architect_node") as mock_jd_node:
-            mock_jd_node.return_value = SharedState(
-                job_id=job_id, 
-                current_stage=PipelineStage.JD_REVIEW.value,
-                job_description="Mocked JD"
-            )
-            await _run_orchestration_task(job_id)
+        await _run_orchestration_task(job_id)
         
         # Check if halted at JD_REVIEW
         db.expire_all()
         job = db.query(Job).filter(Job.job_id == job_id).first()
         assert job.current_stage == PipelineStage.JD_REVIEW.value
         
-        # Perform HITL Approval
-        with patch("app.agents.scout.scout_node") as mock_scout:
+        with patch("app.core.orchestrator.scout_node") as mock_scout, patch(
+            "app.core.orchestrator.screener_node"
+        ) as mock_screener:
             mock_scout.return_value = SharedState(
                 job_id=job_id,
                 current_stage=PipelineStage.SCREENING.value,
-                candidates=[CandidateProfile(name="Mock candidate")]
+                candidates=[CandidateProfile(name="Mock candidate")],
+                jd_approval=ApprovalStatus.APPROVED.value,
             )
-            
-            await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Looks good."})
+            mock_screener.return_value = SharedState(
+                job_id=job_id,
+                current_stage=PipelineStage.SHORTLIST_REVIEW.value,
+                jd_approval=ApprovalStatus.APPROVED.value,
+                shortlist_approval=ApprovalStatus.PENDING.value,
+                candidates=[CandidateProfile(name="Mock candidate")],
+            )
+            with patch("app.core.orchestrator.start_orchestration"):
+                await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Looks good."})
             db.commit()
-            
-            # Wait for background task to move it to sourcing
-            await asyncio.sleep(0.1) 
-            
-            # Re-fetch and verify next stage
+
+            orch = Orchestrator(db, job_id)
+            await orch.execute()
+
             db.expire_all()
             job = db.query(Job).filter(Job.job_id == job_id).first()
-            assert job.current_stage == PipelineStage.SCREENING.value
+            assert job.current_stage == PipelineStage.SHORTLIST_REVIEW.value
             assert job.workflow_state["jd_approval"] == "approved"
+            assert job.workflow_state["shortlist_approval"] == ApprovalStatus.PENDING.value

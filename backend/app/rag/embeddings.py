@@ -86,7 +86,8 @@ def index_resume(parsed: dict) -> str:
     for chunk in chunks:
         section = chunk.get("section", "full")
         text = chunk.get("text", "").strip()
-        if not text: continue
+        if not text:
+            continue
 
         metadata: dict[str, Any] = {
             "candidate_id": candidate_id,
@@ -148,7 +149,8 @@ def search_resumes(
             continue
 
         cid = doc.metadata.get("candidate_id")
-        if not cid: continue
+        if not cid:
+            continue
 
         # Manual Metadata Filtering & Hybrid Boosting
         boost_score = 0.0

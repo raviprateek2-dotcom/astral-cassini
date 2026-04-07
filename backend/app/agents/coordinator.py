@@ -11,16 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
-import random
 from datetime import datetime, timedelta
-from pydantic import BaseModel
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
-from app.models.state import SharedState, PipelineStage, Interview, Assessment, Recommendation, OfferRecord, SuggestedQuestion
+from app.models.state import SharedState, PipelineStage, Interview, Assessment, Recommendation, OfferRecord
 from app.tools.calendar_tool import schedule_meeting
 from app.tools.email_tool import send_interview_invitation
 
@@ -68,7 +65,8 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
         return state
 
     top = [c for c in scored_candidates if c.overall_score >= 60][:5]
-    if not top: top = scored_candidates[:3]
+    if not top:
+        top = scored_candidates[:3]
 
     scheduled = []
     base_time = datetime.now() + timedelta(days=2)
@@ -112,8 +110,10 @@ async def _handle_interview_analysis(state: SharedState, llm: ChatOpenAI) -> Sha
         try:
             res = await llm.ainvoke([SystemMessage(content=INTERVIEWER_PROMPT), HumanMessage(content=f"Data: {chr(10).join(transcripts)}")])
             content = res.content
-            if "```json" in content: content = content.split("```json")[1].split("```")[0]
-            elif "```" in content: content = content.split("```")[1].split("```")[0]
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
             assessments_dicts = json.loads(content.strip())
         except Exception as e:
             logger.error(f"Failed to parse LLM interview output: {e}")

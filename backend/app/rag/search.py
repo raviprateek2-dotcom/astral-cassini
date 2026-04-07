@@ -1,6 +1,6 @@
 """Semantic search module for the RAG pipeline.
 
-Performs similarity search in InMemoryVectorStore to find matching candidates.
+Delegates to `app.rag.embeddings.search_resumes` (FAISS-backed).
 """
 
 from __future__ import annotations

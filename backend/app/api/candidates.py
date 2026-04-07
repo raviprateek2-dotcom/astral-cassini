@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 from pathlib import Path
 
 from typing import Annotated
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.auth import RequireHR
 from app.core.orchestrator import get_workflow_status
+from app.models.db_models import User
 from app.rag.parser import parse_resume_pdf, parse_resume_text
 from app.rag.embeddings import index_resume, get_collection_count
 
@@ -24,6 +25,7 @@ UPLOAD_DIR = Path("data/uploads")
 async def get_candidates(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, RequireHR],
 ):
     """Get matched candidates for a job."""
     status = get_workflow_status(db, job_id)
@@ -38,9 +40,25 @@ async def get_candidates(
     }
 
 
-@router.post("/resumes/upload")
-async def upload_resume(file: UploadFile = File(...)):
-    """Upload a resume PDF and index it in the vector store."""
+@router.post("/resumes/upload", deprecated=True)
+async def upload_resume(
+    response: Response,
+    _: Annotated[User, RequireHR],
+    file: UploadFile = File(...),
+):
+    """Index a resume without a job id (utility / admin-style upload).
+
+    Accepts **PDF** (parsed with ``parse_resume_pdf``) or other files as **UTF-8 text**
+    (``parse_resume_text``). Does **not** enforce pipeline stage.
+
+    **Preferred:** ``POST /api/jobs/{job_id}/resumes`` (product UI uses that route).
+
+    **Deprecation:** Marked deprecated in OpenAPI; responses may include ``Deprecation``,
+    ``Sunset`` (RFC 8594), and ``Link`` for the job-scoped replacement. See CHANGELOG.
+    """
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "Wed, 07 Apr 2027 00:00:00 GMT"
+    response.headers["Link"] = '</api/jobs/>; rel="related"; title="POST /api/jobs/{job_id}/resumes"'
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     # Save the uploaded file
@@ -73,6 +91,6 @@ async def upload_resume(file: UploadFile = File(...)):
 
 
 @router.get("/resumes/count")
-async def resume_count():
+async def resume_count(_: Annotated[User, RequireHR]):
     """Get the number of indexed resumes."""
     return {"count": get_collection_count()}

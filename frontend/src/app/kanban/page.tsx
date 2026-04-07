@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { toast } from "sonner";
 import { AgentThinking } from "@/components/AgentThinking";
+import type { JobListItem } from "@/types/domain";
 
 const STAGES = [
     { key: "intake", label: "Intake", color: "#64748b", icon: "📥" },
@@ -21,14 +22,7 @@ const STAGES = [
     { key: "completed", label: "Completed", color: "#10b981", icon: "✅" },
 ];
 
-interface Job {
-    job_id: string;
-    job_title: string;
-    department: string;
-    current_stage: string;
-    candidates_count: number;
-    created_at: string;
-}
+type Job = JobListItem;
 
 function JobCard({ job, isLive, onUpload }: { job: Job; isLive: boolean; onUpload: (job: Job) => void }) {
     return (
@@ -68,7 +62,11 @@ function JobCard({ job, isLive, onUpload }: { job: Job; isLive: boolean; onUploa
                             👥 <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{job.candidates_count || 0}</span>
                         </span>
                         <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                            📅 <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{new Date(job.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                            📅 <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                                {job.created_at
+                                    ? new Date(job.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+                                    : "—"}
+                            </span>
                         </span>
                     </div>
                 </div>
@@ -147,7 +145,7 @@ export default function KanbanPage() {
 
         toast.promise(promise, {
             loading: "Agent 3 is parsing resume...",
-            success: (data) => {
+            success: () => {
                 setUploadingJob(null);
                 loadJobs();
                 return `Resume parsed & candidate added!`;

@@ -1,16 +1,9 @@
 import React, { useState } from 'react';
 import { Activity, Clock, ShieldCheck, Cpu } from 'lucide-react';
-
-interface AuditLog {
-    timestamp: string;
-    agent: string;
-    action: string;
-    details: string;
-    stage: string;
-}
+import type { AuditLogEntry } from '@/types/domain';
 
 interface AuditTimelineProps {
-    logs: AuditLog[];
+    logs: AuditLogEntry[];
 }
 
 export function AuditTimeline({ logs }: AuditTimelineProps) {
@@ -48,36 +41,42 @@ export function AuditTimeline({ logs }: AuditTimelineProps) {
 
             <div style={{ flex: 1, overflowY: "auto", paddingRight: "10px" }}>
                 <div style={{ borderLeft: "2px solid rgba(255,255,255,0.05)", marginLeft: "12px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "24px" }}>
-                    {displayLogs.map((log, i) => (
+                    {displayLogs.map((log, i) => {
+                        const agent = log.agent ?? "";
+                        const timestamp = log.timestamp ?? "";
+                        const details = log.details ?? "";
+                        const action = log.action ?? "";
+                        return (
                         <div key={i} style={{ position: "relative" }}>
                             <div style={{ 
                                 position: "absolute", left: "-27px", top: 0, 
                                 width: 12, height: 12, borderRadius: "50%", 
-                                background: log.agent.includes("Guardian") ? "var(--accent-emerald)" : log.agent.includes("Coordinator") ? "var(--accent-purple)" : "var(--accent-blue)",
+                                background: agent.includes("Guardian") ? "var(--accent-emerald)" : agent.includes("Coordinator") ? "var(--accent-purple)" : "var(--accent-blue)",
                                 border: "2px solid #0f172a",
-                                boxShadow: `0 0 10px ${log.agent.includes("Guardian") ? "var(--accent-emerald)" : "var(--accent-blue)"}`
+                                boxShadow: `0 0 10px ${agent.includes("Guardian") ? "var(--accent-emerald)" : "var(--accent-blue)"}`
                             }} />
 
                             <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                                <Clock size={12} /> {formatTime(log.timestamp)}
+                                <Clock size={12} /> {formatTime(timestamp)}
                             </div>
                             
                             <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
                                 <Cpu size={14} color="var(--text-secondary)" />
-                                {log.agent}
+                                {agent || "System"}
                             </div>
 
                             <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                                {log.details}
+                                {details}
                             </div>
                             
                             <div style={{ marginTop: 6 }}>
                                 <span style={{ fontSize: "0.65rem", padding: "2px 6px", background: "rgba(255,255,255,0.05)", borderRadius: 4, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                                    {log.action}
+                                    {action}
                                 </span>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 

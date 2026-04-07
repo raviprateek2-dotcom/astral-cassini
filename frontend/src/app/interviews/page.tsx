@@ -2,11 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import type {
+    AssessmentRow,
+    InterviewsApiResponse,
+    InterviewRow,
+    JobListItem,
+} from "@/types/domain";
 
 export default function InterviewsPage() {
-    const [jobs, setJobs] = useState<any[]>([]);
+    const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<InterviewsApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,7 +31,6 @@ export default function InterviewsPage() {
 
     const interviews = data?.scheduled_interviews || [];
     const assessments = data?.interview_assessments || [];
-    const assessmentMap = Object.fromEntries(assessments.map((a: any) => [a.candidate_id, a]));
 
     return (
         <div className="fade-in">
@@ -70,7 +75,7 @@ export default function InterviewsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {interviews.map((int: any, i: number) => (
+                            {interviews.map((int: InterviewRow, i: number) => (
                                 <tr key={i}>
                                     <td style={{ fontWeight: 600 }}>{int.candidate_name}</td>
                                     <td>
@@ -79,13 +84,18 @@ export default function InterviewsPage() {
                                         </span>
                                     </td>
                                     <td style={{ fontSize: "0.85rem" }}>
-                                        {new Date(int.scheduled_time).toLocaleDateString("en-IN", {
+                                        {int.scheduled_time
+                                            ? new Date(String(int.scheduled_time)).toLocaleDateString("en-IN", {
                                             day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-                                        })}
+                                            })
+                                            : "—"}
                                     </td>
                                     <td>{int.duration_minutes}m</td>
                                     <td style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                                        {(int.interviewers || []).join(", ")}
+                                        {(Array.isArray(int.interviewers)
+                                            ? int.interviewers
+                                            : []
+                                        ).join(", ")}
                                     </td>
                                     <td><span className="badge badge-emerald">{int.status}</span></td>
                                 </tr>
@@ -102,7 +112,9 @@ export default function InterviewsPage() {
                         🎙️ Interview Assessments
                     </h2>
                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                        {assessments.map((a: any, i: number) => (
+                        {assessments.map((a: AssessmentRow, i: number) => {
+                            const overall = Number(a.overall_score ?? 0);
+                            return (
                             <div key={i} style={{
                                 padding: 20, borderRadius: 12, border: "1px solid var(--border-glass)",
                                 background: "rgba(15, 23, 42, 0.4)",
@@ -111,18 +123,18 @@ export default function InterviewsPage() {
                                     <h3 style={{ margin: 0, fontSize: "1rem" }}>{a.candidate_name}</h3>
                                     <span style={{
                                         fontSize: "1.5rem", fontWeight: 800,
-                                        color: a.overall_score >= 8 ? "var(--accent-emerald)" : a.overall_score >= 6 ? "var(--accent-amber)" : "var(--accent-rose)",
+                                        color: overall >= 8 ? "var(--accent-emerald)" : overall >= 6 ? "var(--accent-amber)" : "var(--accent-rose)",
                                     }}>
-                                        {a.overall_score}/10
+                                        {overall}/10
                                     </span>
                                 </div>
 
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
                                     {[
-                                        { label: "Technical", value: a.technical_score, color: "#3b82f6" },
-                                        { label: "Communication", value: a.communication_score, color: "#8b5cf6" },
-                                        { label: "Problem Solving", value: a.problem_solving_score, color: "#06b6d4" },
-                                        { label: "Cultural Fit", value: a.cultural_fit_score, color: "#10b981" },
+                                        { label: "Technical", value: Number(a.technical_score), color: "#3b82f6" },
+                                        { label: "Communication", value: Number(a.communication_score), color: "#8b5cf6" },
+                                        { label: "Problem Solving", value: Number(a.problem_solving_score), color: "#06b6d4" },
+                                        { label: "Cultural Fit", value: Number(a.cultural_fit_score), color: "#10b981" },
                                     ].map((dim) => (
                                         <div key={dim.label} style={{ textAlign: "center" }}>
                                             <div style={{
@@ -138,25 +150,26 @@ export default function InterviewsPage() {
                                     ))}
                                 </div>
 
-                                {a.key_observations?.length > 0 && (
+                                {Array.isArray(a.key_observations) && a.key_observations.length > 0 && (
                                     <div style={{ marginBottom: 8 }}>
                                         <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-emerald)", margin: "0 0 4px" }}>Key Observations</p>
-                                        {a.key_observations.map((o: string, j: number) => (
-                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>• {o}</p>
+                                        {a.key_observations.map((o: unknown, j: number) => (
+                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>• {String(o)}</p>
                                         ))}
                                     </div>
                                 )}
 
-                                {a.concerns?.length > 0 && (
+                                {Array.isArray(a.concerns) && a.concerns.length > 0 && (
                                     <div>
                                         <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-amber)", margin: "0 0 4px" }}>Concerns</p>
-                                        {a.concerns.map((c: string, j: number) => (
-                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>⚠ {c}</p>
+                                        {a.concerns.map((c: unknown, j: number) => (
+                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>⚠ {String(c)}</p>
                                         ))}
                                     </div>
                                 )}
                             </div>
-                        ))}
+                        );
+                        })}
                     </div>
                 </div>
             )}

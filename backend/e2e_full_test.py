@@ -1,15 +1,13 @@
 """
-PRO HR — End-to-End 7-Agent Lifecycle Test
-==========================================
-Tests the complete recruitment pipeline:
-  1. Login & Auth
-  2. Job Intake → JD Architect (Agent 01)
-  3. JD Approval → Liaison Gate 1 (Agent 04)
-  4. Candidate Injection → Scout + Screener (Agents 02 & 03)
-  5. Shortlist Approval → Liaison Gate 2
-  6. Interview Simulation → Coordinator (Agent 05) + Outreach (Agent 06)
-  7. Hire Approval → Offer Generation (Agent 07)
-  8. Final Audit Trail verification
+MANUAL smoke test only — not run in CI.
+
+Prerequisites:
+  - uvicorn on http://127.0.0.1:8000
+  - pip install -r requirements-dev.txt (needs ``requests``)
+  - Demo user seeded (e.g. admin@prohr.ai) per SEED_DEMO_USERS / app/main.py
+
+Exercises the HTTP API end-to-end against a live server. For automated pipeline
+coverage without a server, use: pytest tests/e2e/
 """
 
 import requests
@@ -43,7 +41,7 @@ def login():
 
 def main():
     print(f"\n{SEP}")
-    print("  PRO HR — 7-AGENT E2E LIFECYCLE TEST")
+    print("  PRO HR — MANUAL API E2E (live server)")
     print(f"{SEP}")
 
     # ── Step 1: Authentication ──

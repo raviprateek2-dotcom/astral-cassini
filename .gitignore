@@ -14,7 +14,8 @@ __pycache__/
 *.pyc
 
 # Local config
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 
 # Backend

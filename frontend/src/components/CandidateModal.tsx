@@ -1,8 +1,9 @@
 import React from 'react';
 import { X, Award, Briefcase, GraduationCap, AlertTriangle, Target } from 'lucide-react';
+import type { CandidateLike } from "@/types/domain";
 
 interface CandidateModalProps {
-    candidate: any;
+    candidate: CandidateLike | null;
     onClose: () => void;
 }
 
@@ -11,10 +12,23 @@ export function CandidateModal({ candidate, onClose }: CandidateModalProps) {
 
     // Normalize from ScoredCandidate or Recommendation model
     const score = candidate.overall_weighted_score || candidate.overall_score || candidate.relevance_score || 0;
-    const strengths = candidate.strengths || candidate.skills || [];
-    const gaps = candidate.gaps || candidate.missing_skills || [];
-    const reasoning = candidate.reasoning || candidate.match_reason || "No manual insights available.";
-    const thought_process = candidate.thought_process || "Scoring applied standard criteria.";
+    const rawStrengths = candidate.strengths ?? candidate.skills;
+    const strengths = Array.isArray(rawStrengths) ? rawStrengths : [];
+    const rawGaps = candidate.gaps ?? candidate.missing_skills;
+    const gaps = Array.isArray(rawGaps) ? rawGaps : [];
+    const reasoning =
+        (typeof candidate.reasoning === "string" && candidate.reasoning) ||
+        (typeof candidate.match_reason === "string" && candidate.match_reason) ||
+        "No manual insights available.";
+    const thought_process =
+        (typeof candidate.thought_process === "string" && candidate.thought_process) ||
+        "Scoring applied standard criteria.";
+    const experienceYearsRaw = Number(candidate.experience_years);
+    const experienceYears = Number.isFinite(experienceYearsRaw) ? experienceYearsRaw : 0;
+    const educationLabel =
+        typeof candidate.education === "string" && candidate.education.length > 0
+            ? candidate.education
+            : "-";
 
     return (
         <div style={{
@@ -48,8 +62,8 @@ export function CandidateModal({ candidate, onClose }: CandidateModalProps) {
                     <div>
                         <h2 style={{ fontSize: "2rem", margin: "0 0 8px" }}>{candidate.name || candidate.candidate_name}</h2>
                         <div style={{ display: "flex", gap: 12, color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Briefcase size={14} /> {candidate.experience_years || 0} Years Exp</span>
-                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={14} /> {candidate.education || "-"}</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Briefcase size={14} /> {experienceYears} Years Exp</span>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={14} /> {educationLabel}</span>
                         </div>
                     </div>
                     
@@ -62,15 +76,31 @@ export function CandidateModal({ candidate, onClose }: CandidateModalProps) {
                 </div>
 
                 {/* Score Breakdown Bars if available */}
-                {candidate.skills_match !== undefined && (
+                {typeof candidate.skills_match === "number" && (
                     <div style={{ marginBottom: "32px" }}>
                         <h3 style={{ fontSize: "1.1rem", marginBottom: "16px" }}>Deterministic Evaluation Matrix</h3>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
                             {[
-                                { label: "Technical Skills", val: (candidate.skills_match / 25) * 100, color: "var(--accent-blue)" },
-                                { label: "Experience Velocity", val: (candidate.experience_match / 25) * 100, color: "var(--accent-purple)" },
-                                { label: "Education Baseline", val: (candidate.education_match / 25) * 100, color: "var(--accent-emerald)" },
-                                { label: "Culture & Alignment", val: (candidate.cultural_fit / 25) * 100, color: "var(--accent-amber)" },
+                                {
+                                    label: "Technical Skills",
+                                    val: (Number(candidate.skills_match) / 25) * 100,
+                                    color: "var(--accent-blue)",
+                                },
+                                {
+                                    label: "Experience Velocity",
+                                    val: (Number(candidate.experience_match) / 25) * 100,
+                                    color: "var(--accent-purple)",
+                                },
+                                {
+                                    label: "Education Baseline",
+                                    val: (Number(candidate.education_match) / 25) * 100,
+                                    color: "var(--accent-emerald)",
+                                },
+                                {
+                                    label: "Culture & Alignment",
+                                    val: (Number(candidate.cultural_fit) / 25) * 100,
+                                    color: "var(--accent-amber)",
+                                },
                             ].map((stat, i) => (
                                 <div key={i}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
@@ -90,14 +120,22 @@ export function CandidateModal({ candidate, onClose }: CandidateModalProps) {
                     <div style={{ background: "rgba(16, 185, 129, 0.05)", padding: "20px", borderRadius: "12px", border: "1px solid rgba(16, 185, 129, 0.1)" }}>
                         <h4 style={{ display: "flex", alignItems: "center", gap: "8px", margin: "0 0 16px", color: "var(--accent-emerald)" }}><Award size={18} /> Verified Strengths</h4>
                         <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                            {strengths.map((s: string, i: number) => <li key={i} style={{ marginBottom: "8px" }}>{s}</li>)}
+                            {strengths
+                                .filter((s): s is string => typeof s === "string")
+                                .map((s, i) => (
+                                    <li key={i} style={{ marginBottom: "8px" }}>{s}</li>
+                                ))}
                         </ul>
                     </div>
 
                     <div style={{ background: "rgba(244, 63, 94, 0.05)", padding: "20px", borderRadius: "12px", border: "1px solid rgba(244, 63, 94, 0.1)" }}>
                         <h4 style={{ display: "flex", alignItems: "center", gap: "8px", margin: "0 0 16px", color: "var(--accent-rose)" }}><AlertTriangle size={18} /> Potential Gaps</h4>
                         <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                            {gaps.length > 0 ? gaps.map((g: string, i: number) => <li key={i} style={{ marginBottom: "8px" }}>{g}</li>) : <li>No significant gaps detected.</li>}
+                            {gaps.length > 0
+                                ? gaps
+                                    .filter((g): g is string => typeof g === "string")
+                                    .map((g, i) => <li key={i} style={{ marginBottom: "8px" }}>{g}</li>)
+                                : <li>No significant gaps detected.</li>}
                         </ul>
                     </div>
                 </div>

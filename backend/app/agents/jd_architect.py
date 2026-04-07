@@ -7,7 +7,6 @@ the LLM to generate a structured, bias-aware job description.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 import asyncio
 import re
 
@@ -53,8 +52,6 @@ async def jd_architect_node(state: SharedState) -> SharedState:
         streaming=True,
     )
 
-    print(f"DEBUG: Entering jd_architect_node for job {state.job_id}")
-
     # Build the prompt
     user_prompt = f"""Draft a comprehensive job description for the following role:
 
@@ -88,7 +85,6 @@ Please incorporate this feedback into the revised job description.
     
     # Check if we should use mock data (no valid API key)
     if not settings.openai_api_key or "your-openai" in settings.openai_api_key:
-        print("DEBUG: Using MOCK JD Architect response due to missing API key")
         mock_text = f"# {state.job_title}\n\n## Overview\nThis is a mock job description generated for testing purposes because the OpenAI API key is missing.\n\n## Requirements\n- " + "\n- ".join(state.requirements)
         
         if state.human_feedback:
@@ -124,9 +120,12 @@ Please incorporate this feedback into the revised job description.
     jd_match = re.search(r"<job_description>(.*?)</job_description>", job_description, re.DOTALL)
     audit_match = re.search(r"<bias_audit>(.*?)</bias_audit>", job_description, re.DOTALL)
     
-    if thought_match: thought = thought_match.group(1).strip()
-    if jd_match: final_jd = jd_match.group(1).strip()
-    if audit_match: audit_summary = audit_match.group(1).strip()
+    if thought_match:
+        thought = thought_match.group(1).strip()
+    if jd_match:
+        final_jd = jd_match.group(1).strip()
+    if audit_match:
+        audit_summary = audit_match.group(1).strip()
     
     # Fallback if parsing fails
     if not final_jd:

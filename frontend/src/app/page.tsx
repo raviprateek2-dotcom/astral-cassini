@@ -19,7 +19,7 @@ export default function LandingPage() {
         { 
             name: "Ashish Padhy", 
             role: "AI & Infrastructure", 
-            contribution: "Architected the 7-agent orchestration engine and core LangGraph pipeline.",
+            contribution: "Architected the deterministic orchestration engine and FAISS-backed RAG pipeline.",
             avatar: "🧬",
             color: "#3b82f6"
         },
@@ -76,12 +76,10 @@ export default function LandingPage() {
 
     const agents = [
         { id: 1, name: "JD Architect", pro: "Drafting Precision", feature: "Generates high-fidelity JDs from unstructured inputs.", icon: "📝" },
-        { id: 2, name: "Scout", pro: "Semantic Sourcing", feature: "Powered by FAISS retrieval and real-time candidate search.", icon: "🔭" },
-        { id: 3, name: "Screener", pro: "Explainable Scoring", feature: "Provides match reasoning and competency gaps for every profile.", icon: "📊" },
-        { id: 4, name: "Ethics Guardian", pro: "Bias Mitigation", feature: "Explicitly audit logs for demographic data exclusion.", icon: "🛡️" },
-        { id: 5, name: "Coordinator", pro: "Interview Intelligence", feature: "Manages automated scheduling and analysis.", icon: "📅" },
-        { id: 6, name: "Negotiator", pro: "Strategic Offers", feature: "Benchmarks roles against industry market values.", icon: "🤝" },
-        { id: 7, name: "Closer", pro: "Onboarding Flow", feature: "Finalizes contracts and integrates new hires into the org.", icon: "🚀" },
+        { id: 2, name: "The Liaison", pro: "Human Gates", feature: "HITL approvals for JD, shortlist, and hire decisions before the pipeline advances.", icon: "🛡️" },
+        { id: 3, name: "Scout", pro: "Semantic Sourcing", feature: "FAISS-backed retrieval: semantic resume search using the approved job description.", icon: "🔭" },
+        { id: 4, name: "Screener", pro: "Explainable Scoring", feature: "Match reasoning, competency gaps, and structured scores for every profile.", icon: "📊" },
+        { id: 5, name: "Coordinator", pro: "Late-Stage Ops", feature: "Scheduling, interview assessment, deterministic hire decision, and offer drafting in one orchestrated node.", icon: "📅" },
     ];
 
     const [activeMember, setActiveMember] = React.useState<number | null>(null);
@@ -155,8 +153,8 @@ export default function LandingPage() {
                         maxWidth: "700px",
                         marginInline: "auto"
                     }}>
-                        PRO HR leverages a consolidated 7-agent architecture to automate the
-                        entire recruitment lifecycle—from semantic sourcing to offer generation.
+                        PRO HR runs a five-agent pipeline under a deterministic orchestrator—
+                        from semantic sourcing through human gates to interviews and offers.
                     </p>
 
                     <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>

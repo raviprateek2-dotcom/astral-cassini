@@ -13,10 +13,15 @@ RUN npm ci
 # Copy the source code
 COPY . .
 
-# Build the Next.js application
-# Ensure we pass the backend URL as a build arg if needed for client-side
-ARG NEXT_PUBLIC_API_URL
+# Build-time env (inlined into client/server bundles where Next reads process.env)
+# - Leave NEXT_PUBLIC_API_URL empty for same-origin /api → rewrites use BACKEND_URL (recommended in Docker Compose).
+# - Set NEXT_PUBLIC_API_URL to an absolute origin when the browser must call the API host directly.
+ARG NEXT_PUBLIC_API_URL=
+ARG BACKEND_URL=http://127.0.0.1:8000
+ARG NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV BACKEND_URL=$BACKEND_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 
 RUN npm run build
 

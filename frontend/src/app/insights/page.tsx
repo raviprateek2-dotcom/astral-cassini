@@ -4,15 +4,7 @@ import { useState, useEffect, Suspense, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import { AgentThinking } from "@/components/AgentThinking";
-
-interface AuditEntry {
-    id?: string;
-    agent: string;
-    action: string;
-    details: string;
-    timestamp: string;
-    stage: string;
-}
+import type { AuditLogEntry } from "@/types/domain";
 
 interface JobDetails {
     job_title: string;
@@ -29,7 +21,7 @@ interface StructuredDetails {
 function InsightsContent() {
     const searchParams = useSearchParams();
     const jobId = searchParams.get("id");
-    const [audit, setAudit] = useState<AuditEntry[]>([]);
+    const [audit, setAudit] = useState<AuditLogEntry[]>([]);
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -41,7 +33,7 @@ function InsightsContent() {
                 api.getAudit(jobId),
                 api.getJob(jobId)
             ]);
-            setAudit(auditData);
+            setAudit(auditData.audit_log ?? []);
             setJobDetails(jobData);
         } catch (err) {
             console.error("Failed to load insights", err);
@@ -86,32 +78,36 @@ function InsightsContent() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         {audit.map((entry, idx) => {
                             let parsedDetails: StructuredDetails | null = null;
-                            const rawDetails = entry.details;
-                            
+                            const agentLabel = entry.agent ?? "System";
+                            const rawDetails = typeof entry.details === "string" ? entry.details : "";
+                            const actionStr = entry.action ?? "";
+                            const ts = entry.timestamp ?? "";
+                            const stageStr = entry.stage ?? "";
+
                             try {
                                 if (rawDetails.trim().startsWith("{")) {
-                                    parsedDetails = JSON.parse(rawDetails);
+                                    parsedDetails = JSON.parse(rawDetails) as StructuredDetails;
                                 }
-                            } catch (e) {
+                            } catch {
                                 console.log("Standard details string, not JSON.");
                             }
 
                             return (
                                 <div key={entry.id || idx} className="glass-card fade-in" style={{ 
                                     padding: 24, 
-                                    borderLeft: `4px solid ${agentColor(entry.agent)}`,
+                                    borderLeft: `4px solid ${agentColor(agentLabel)}`,
                                     position: "relative"
                                 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                            <span style={{ fontSize: "1.2rem" }}>{agentIcon(entry.agent)}</span>
+                                            <span style={{ fontSize: "1.2rem" }}>{agentIcon(agentLabel)}</span>
                                             <div>
-                                                <h3 style={{ fontSize: "0.9rem", fontWeight: 700, margin: 0 }}>{entry.agent}</h3>
-                                                <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>{entry.action.replace(/_/g, " ").toUpperCase()} • {new Date(entry.timestamp).toLocaleTimeString()}</p>
+                                                <h3 style={{ fontSize: "0.9rem", fontWeight: 700, margin: 0 }}>{agentLabel}</h3>
+                                                <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>{actionStr.replace(/_/g, " ").toUpperCase()} • {ts ? new Date(ts).toLocaleTimeString() : ""}</p>
                                             </div>
                                         </div>
                                         <div className="badge badge-blue" style={{ background: "rgba(255,255,255,0.05)", fontSize: "0.65rem" }}>
-                                            STAGE: {entry.stage.toUpperCase()}
+                                            STAGE: {stageStr.toUpperCase()}
                                         </div>
                                     </div>
 
@@ -158,7 +154,7 @@ function InsightsContent() {
                                 </div>
                                 <div style={{ borderLeft: "2px solid var(--accent-cyan)", paddingLeft: 16 }}>
                                     <h4 style={{ fontSize: "0.8rem", color: "var(--accent-cyan)", marginBottom: 4 }}>2. Semantic Retrieval</h4>
-                                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: 0 }}>Semantic k-NN search across ChromaDB using JD requirements as base query.</p>
+                                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: 0 }}>Semantic k-NN search across the FAISS resume index using JD requirements as the base query.</p>
                                 </div>
                                 <div style={{ borderLeft: "2px solid var(--accent-purple)", paddingLeft: 16 }}>
                                     <h4 style={{ fontSize: "0.8rem", color: "var(--accent-purple)", marginBottom: 4 }}>3. Cross-Encoder Reranking</h4>

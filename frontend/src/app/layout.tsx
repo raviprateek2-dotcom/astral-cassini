@@ -1,6 +1,5 @@
 "use client";
 
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { usePathname } from "next/navigation";
 import "./globals.css";
@@ -39,7 +38,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <title>PRO HR — Autonomous Recruitment Ecosystem</title>
-        <meta name="description" content="Multi-agent recruitment platform powered by LangGraph with 7 specialized AI agents for end-to-end hiring automation." />
+        <meta name="description" content="Multi-agent recruitment platform with a deterministic orchestrator, human-in-the-loop gates, and FAISS-backed semantic resume search." />
       </head>
       <body className={inter.className} style={{ position: "relative", overflowX: "hidden", minHeight: "100vh", backgroundColor: "#0f172a" }}>
 

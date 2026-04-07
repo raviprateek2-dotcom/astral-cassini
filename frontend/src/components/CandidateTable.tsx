@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { Search, Filter, ChevronDown, ChevronUp, User } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, User } from 'lucide-react';
+import type { CandidateLike } from "@/types/domain";
 
 interface CandidateTableProps {
-    candidates: any[];
-    onRowClick: (candidate: any) => void;
+    candidates: CandidateLike[];
+    onRowClick: (candidate: CandidateLike) => void;
     stage: string;
 }
+
+/** Normalized row after map (score is always a finite number for display). */
+type CandidateTableRow = CandidateLike & {
+    id?: string;
+    name?: unknown;
+    score: number;
+};
 
 export function CandidateTable({ candidates, onRowClick, stage }: CandidateTableProps) {
     const [searchTerm, setSearchTerm] = useState("");
@@ -21,32 +29,47 @@ export function CandidateTable({ candidates, onRowClick, stage }: CandidateTable
     }
 
     // Filter & Sort
-    let processed = [...candidates];
-    
-    // Normalize properties since different stages use slightly different objects
-    // CandidateProfile vs ScoredCandidate vs Recommendation
-    processed = processed.map(c => ({
-        ...c,
-        id: c.candidate_id || c.id,
-        name: c.candidate_name || c.name,
-        score: c.overall_weighted_score || c.overall_score || c.relevance_score || 0
-    }));
+    let processed: CandidateTableRow[] = [...candidates].map((c) => {
+        const raw =
+            c.overall_weighted_score ?? c.overall_score ?? c.relevance_score ?? 0;
+        const score = typeof raw === "number" && Number.isFinite(raw) ? raw : Number(raw) || 0;
+        return {
+            ...c,
+            id: c.candidate_id || c.id,
+            name: c.candidate_name || c.name,
+            score,
+        };
+    });
 
     if (searchTerm) {
-        processed = processed.filter(c => 
-            c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.skills?.some((s: string) => s.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
+        const term = searchTerm.toLowerCase();
+        processed = processed.filter((c) => {
+            const name = typeof c.name === "string" ? c.name.toLowerCase() : "";
+            const skills = Array.isArray(c.skills) ? c.skills : [];
+            return (
+                name.includes(term) ||
+                skills.some((s) => typeof s === "string" && s.toLowerCase().includes(term))
+            );
+        });
     }
 
+    const sortable = (v: unknown): number | string => {
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+        if (typeof v === "string") return v.toLowerCase();
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+        return "";
+    };
+    const compare = (x: number | string, y: number | string): number => {
+        if (typeof x === "number" && typeof y === "number") return x - y;
+        return String(x).localeCompare(String(y));
+    };
     processed.sort((a, b) => {
-        let valA = a[sortField] || a.score;
-        let valB = b[sortField] || b.score;
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-        
-        if (valA < valB) return sortDesc ? 1 : -1;
-        if (valA > valB) return sortDesc ? -1 : 1;
+        const valA = sortable(a[sortField as keyof CandidateTableRow] ?? a.score);
+        const valB = sortable(b[sortField as keyof CandidateTableRow] ?? b.score);
+        const diff = compare(valA, valB);
+        if (diff < 0) return sortDesc ? 1 : -1;
+        if (diff > 0) return sortDesc ? -1 : 1;
         return 0;
     });
 
@@ -112,23 +135,30 @@ export function CandidateTable({ candidates, onRowClick, stage }: CandidateTable
                                             <User size={18} />
                                         </div>
                                         <div>
-                                            <div style={{ fontWeight: 600 }}>{c.name}</div>
+                                            <div style={{ fontWeight: 600 }}>{typeof c.name === "string" ? c.name : String(c.name ?? "—")}</div>
                                             <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.id}</div>
                                         </div>
                                     </div>
                                 </td>
                                 
                                 <td style={{ padding: "16px", color: "var(--text-secondary)" }}>
-                                    {c.experience_years ? `${c.experience_years} Years` : "—"}
+                                    {(() => {
+                                        const y = Number(c.experience_years);
+                                        return Number.isFinite(y) && y > 0 ? `${y} Years` : "—";
+                                    })()}
                                 </td>
                                 
                                 <td style={{ padding: "16px" }}>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                        {(c.skills || c.strengths || []).slice(0, 3).map((s: string, j: number) => (
+                                        {(() => {
+                                            const raw = c.skills ?? c.strengths;
+                                            const arr = Array.isArray(raw) ? raw : [];
+                                            return arr.slice(0, 3).map((s, j: number) => (
                                             <span key={j} style={{ background: "rgba(59, 130, 246, 0.1)", color: "var(--accent-blue)", padding: "2px 8px", borderRadius: 4, fontSize: "0.75rem" }}>
-                                                {s}
+                                                {typeof s === "string" ? s : String(s)}
                                             </span>
-                                        ))}
+                                            ));
+                                        })()}
                                     </div>
                                 </td>
                                 
@@ -148,8 +178,10 @@ export function CandidateTable({ candidates, onRowClick, stage }: CandidateTable
 
                                 {stage === "hire_review" && (
                                     <td style={{ padding: "16px" }}>
-                                        <span className={`badge ${c.decision === 'hire' ? 'badge-emerald' : 'badge-rose'}`}>
-                                            {c.decision?.toUpperCase() || "UNKNOWN"}
+                                        <span className={`badge ${c.decision === "hire" ? "badge-emerald" : "badge-rose"}`}>
+                                            {typeof c.decision === "string"
+                                                ? c.decision.toUpperCase()
+                                                : "UNKNOWN"}
                                         </span>
                                     </td>
                                 )}

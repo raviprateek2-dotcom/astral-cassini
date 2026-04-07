@@ -7,9 +7,8 @@ deterministic, math-based feature matching. NO random LLM scoring is used.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
-from app.models.state import SharedState, PipelineStage, ScoredCandidate, CandidateProfile
+from app.models.state import SharedState, PipelineStage, ScoredCandidate
 
 async def screener_node(state: SharedState) -> SharedState:
     """Score each candidate against the job requirements deterministically."""
@@ -26,7 +25,7 @@ async def screener_node(state: SharedState) -> SharedState:
     for c in candidates:
         # 1. Skills Match (0-25)
         # Find intersection (case-insensitive substring matching)
-        req_lower = [r.lower() for r in requirements]
+        [r.lower() for r in requirements]
         matched_skills = []
         missing_skills = []
         for req in requirements:

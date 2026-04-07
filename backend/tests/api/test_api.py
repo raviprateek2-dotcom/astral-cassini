@@ -1,4 +1,7 @@
 import pytest
+
+pytestmark = pytest.mark.api
+
 from starlette import status
 from app.models.state import PipelineStage
 from app.main import app
@@ -99,3 +102,68 @@ async def test_endpoint_not_found(client, db):
     assert response.status_code == status.HTTP_404_NOT_FOUND
     
     app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_ws_ticket_for_job(client, db):
+    """GET /api/auth/ws-ticket returns a short-lived JWT bound to job_id."""
+    from jose import jwt as jose_jwt
+
+    from app.core.auth import (
+        ALGORITHM,
+        SECRET_KEY,
+        WS_TOKEN_AUDIENCE,
+        create_access_token,
+        hash_password,
+    )
+    from app.core.orchestrator import start_workflow
+    from app.models.db_models import User
+
+    user = User(
+        email="ws-ticket-test@example.com",
+        full_name="WS Ticket Test",
+        hashed_password=hash_password("unused"),
+        role="hr_manager",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    result = await start_workflow(db, user.id, "WS Test Role", "Eng", ["Python"])
+    job_id = result["job_id"]
+
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    client.cookies.set("access_token", token)
+    response = client.get("/api/auth/ws-ticket", params={"job_id": job_id})
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert "ticket" in body
+    assert body.get("aud") == WS_TOKEN_AUDIENCE
+    decoded = jose_jwt.decode(
+        body["ticket"], SECRET_KEY, algorithms=[ALGORITHM], audience=WS_TOKEN_AUDIENCE
+    )
+    assert decoded["job_id"] == job_id
+    assert decoded["sub"] == str(user.id)
+
+
+@pytest.mark.asyncio
+async def test_ws_ticket_unknown_job(client, db):
+    from app.core.auth import create_access_token, hash_password
+    from app.models.db_models import User
+
+    user = User(
+        email="ws-ticket-404@example.com",
+        full_name="WS 404 Test",
+        hashed_password=hash_password("unused"),
+        role="hr_manager",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token({"sub": str(user.id), "role": user.role})
+    client.cookies.set("access_token", token)
+    response = client.get("/api/auth/ws-ticket", params={"job_id": "nope-nope"})
+    assert response.status_code == status.HTTP_404_NOT_FOUND

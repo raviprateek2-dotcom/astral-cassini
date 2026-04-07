@@ -1,3 +1,7 @@
+"""
+MANUAL alternative-path smoke test — not run in CI.
+Requires live uvicorn, seeded demo users, and: pip install -r requirements-dev.txt
+"""
 import requests
 import json
 import time

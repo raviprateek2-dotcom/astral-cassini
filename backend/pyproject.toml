@@ -8,3 +8,38 @@ requires-python = ">=3.11"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
+markers = [
+    "unit: pure unit tests (mocked LLM, no orchestrator DB loop)",
+    "api: FastAPI route tests with TestClient",
+    "e2e: full hiring pipeline tests (mocked LLM/agents, SQLite test DB)",
+    "integration: orchestrator and DB integration tests",
+    "stability: concurrency and resilience smoke checks",
+]
+filterwarnings = [
+    "ignore:Core Pydantic V1 functionality isn't compatible:UserWarning",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# Focus on correctness and safe style; avoid line-length/isort churn across agents + tests.
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/test_*.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+ignore_missing_imports = true
+files = [
+    "app/config.py",
+    "app/core/auth.py",
+    "app/core/database.py",
+    "app/models/db_models.py",
+    "app/models/state.py",
+]

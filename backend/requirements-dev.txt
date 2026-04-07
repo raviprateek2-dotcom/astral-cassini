@@ -1,0 +1,6 @@
+# Optional development / experiment dependencies (not needed to run the API or CI tests).
+# Install: pip install -r requirements-dev.txt
+# Lint/typecheck (also used in CI): pip install -r requirements-tools.txt
+-r requirements.txt
+langgraph>=0.2.60
+requests>=2.32.0

@@ -34,8 +34,6 @@ export function PipelineSteps({ currentStage }: PipelineStepsProps) {
                 {STAGES.map((stage, idx) => {
                     const isCompleted = idx < currentIndex;
                     const isActive = idx === currentIndex;
-                    const isPending = idx > currentIndex;
-
                     return (
                         <div key={stage.key} style={{ display: "flex", alignItems: "center", flex: 1 }}>
                             {/* Node */}

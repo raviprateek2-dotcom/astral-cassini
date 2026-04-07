@@ -16,6 +16,22 @@ interface AnalyticsSummary {
     total_hires: number;
 }
 
+type DashboardPayload = {
+    summary?: AnalyticsSummary;
+    funnel?: { stage: string; count: number }[];
+    time_to_hire?: { department: string; avg_days: number }[];
+    recent?: { timestamp: string; agent: string; action: string; details: string }[];
+};
+
+type DepartmentsPayload = {
+    departments?: { department: string; total_jobs: number; hires: number }[];
+};
+
+function unwrapApiPayload<T>(response: unknown): T {
+    const maybe = response as { data?: T };
+    return (maybe?.data ?? response) as T;
+}
+
 export default function AnalyticsDashboard() {
     const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
     const [funnel, setFunnel] = useState<{ stage: string; count: number }[]>([]);
@@ -72,16 +88,18 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                     api.getAnalyticsDashboard(),
                     api.getAnalyticsDepartments()
                 ]);
+                const dashboard = unwrapApiPayload<DashboardPayload>(dashRes);
+                const departments = unwrapApiPayload<DepartmentsPayload>(deptRes);
 
-                if (dashRes) {
-                    setSummary(dashRes.summary);
-                    setFunnel(dashRes.funnel);
-                    setTimeData(dashRes.time_to_hire);
-                    setRecent(dashRes.recent);
+                if (dashboard) {
+                    setSummary(dashboard.summary ?? null);
+                    setFunnel(dashboard.funnel ?? []);
+                    setTimeData(dashboard.time_to_hire ?? []);
+                    setRecent(dashboard.recent ?? []);
                     setFetchError(null);
                 }
-                if (deptRes) {
-                    setDeptData(deptRes.departments);
+                if (departments) {
+                    setDeptData(departments.departments ?? []);
                 }
             } catch (err) {
                 console.error("Critical analytics load error:", err);

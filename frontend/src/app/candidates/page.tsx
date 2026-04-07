@@ -5,20 +5,14 @@ import { api } from "@/lib/api";
 import { CandidateTable } from "@/components/CandidateTable";
 import { CandidateModal } from "@/components/CandidateModal";
 import { Search } from "lucide-react";
-
-interface Job {
-    job_id: string;
-    job_title: string;
-    department: string;
-    current_stage: string;
-}
+import type { CandidateLike, JobListItem } from "@/types/domain";
 
 export default function CandidatesPage() {
-    const [jobs, setJobs] = useState<Job[]>([]);
+    const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<string>("");
-    const [candidates, setCandidates] = useState<any[]>([]);
+    const [candidates, setCandidates] = useState<CandidateLike[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
+    const [selectedCandidate, setSelectedCandidate] = useState<CandidateLike | null>(null);
 
     useEffect(() => {
         api.listJobs()
@@ -120,7 +114,7 @@ export default function CandidatesPage() {
                     ) : (
                         <div className="glass-card" style={{ padding: 80, textAlign: "center", opacity: 0.7 }}>
                             <p style={{ fontSize: "2.5rem", margin: "0 0 16px" }}>🔍</p>
-                            <p style={{ fontSize: "1.1rem" }}>This pipeline hasn't generated candidate data yet.</p>
+                            <p style={{ fontSize: "1.1rem" }}>This pipeline has not generated candidate data yet.</p>
                             <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Agent 3 (Scout) needs to finalize the RAG retrieval phase.</p>
                         </div>
                     )}

@@ -1,18 +1,28 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import type { AuditLogEntry, JobDetail, JobListItem, WorkflowBlob } from "@/types/domain";
 
-export interface JobState {
-    job_id: string;
-    job_title: string;
-    department: string;
-    current_stage: string;
-    state: any;
+export type JobState = JobListItem & {
+    state: WorkflowBlob;
+    audit_log?: AuditLogEntry[];
+};
+
+type HeartbeatState = {
+    current_stage?: string;
+    state?: WorkflowBlob;
+};
+
+function normalizeJob(detail: JobDetail): JobState {
+    return {
+        ...detail,
+        state: detail.state ?? {},
+    };
 }
 
 interface JobStore {
     currentJob: JobState | null;
-    jobsList: any[];
+    jobsList: JobState[];
     loading: boolean;
     error: string | null;
     
@@ -20,12 +30,12 @@ interface JobStore {
     fetchJobsList: () => Promise<void>;
     fetchJobDetails: (jobId: string) => Promise<void>;
     setCurrentJob: (job: JobState | null) => void;
-    updateJobStateFromSocket: (data: any) => void;
+    updateJobStateFromSocket: (data: HeartbeatState) => void;
     
     // Command & Control
     approveStage: (feedback?: string, updatedJd?: string) => Promise<void>;
     rejectStage: (feedback: string) => Promise<void>;
-    forceRunAgent: (action: string, stateUpdates?: any) => Promise<void>;
+    forceRunAgent: (action: string, stateUpdates?: WorkflowBlob) => Promise<void>;
 }
 
 export const useJobStore = create<JobStore>((set, get) => ({
@@ -38,9 +48,13 @@ export const useJobStore = create<JobStore>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const jobs = await api.listJobs();
-            set({ jobsList: jobs, loading: false });
-        } catch (err: any) {
-            set({ error: err.message, loading: false });
+            set({
+                jobsList: jobs.map((j) => ({ ...j, state: {} as WorkflowBlob })),
+                loading: false,
+            });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to load jobs.";
+            set({ error: message, loading: false });
         }
     },
 
@@ -48,9 +62,10 @@ export const useJobStore = create<JobStore>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const jobDetails = await api.getJob(jobId);
-            set({ currentJob: jobDetails, loading: false });
-        } catch (err: any) {
-            set({ error: err.message, loading: false });
+            set({ currentJob: normalizeJob(jobDetails), loading: false });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to load job details.";
+            set({ error: message, loading: false });
             toast.error("Failed to load job details.");
         }
     },
@@ -61,16 +76,15 @@ export const useJobStore = create<JobStore>((set, get) => ({
         const currentJob = get().currentJob;
         if (!currentJob) return;
 
-        // Merge incoming WebSocket heartbeat data into current job state
         set({
             currentJob: {
                 ...currentJob,
                 current_stage: data.current_stage || currentJob.current_stage,
                 state: {
                     ...currentJob.state,
-                    ...data.state,
-                }
-            }
+                    ...(data.state ?? {}),
+                },
+            },
         });
     },
 
@@ -83,9 +97,10 @@ export const useJobStore = create<JobStore>((set, get) => ({
             await api.approveStage(jobId, feedback, updatedJd);
             toast.success("Stage approved! Advancing workflow.");
             await get().fetchJobDetails(jobId);
-        } catch (err: any) {
-            set({ error: err.message, loading: false });
-            toast.error(err.message || "Failed to approve stage.");
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to approve stage.";
+            set({ error: message, loading: false });
+            toast.error(message);
         }
     },
 
@@ -98,9 +113,10 @@ export const useJobStore = create<JobStore>((set, get) => ({
             await api.rejectStage(jobId, feedback);
             toast.success("Feedback submitted. Re-running stage.");
             await get().fetchJobDetails(jobId);
-        } catch (err: any) {
-            set({ error: err.message, loading: false });
-            toast.error(err.message || "Failed to reject stage.");
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to reject stage.";
+            set({ error: message, loading: false });
+            toast.error(message);
         }
     },
 
@@ -113,9 +129,10 @@ export const useJobStore = create<JobStore>((set, get) => ({
             await api.patchState(jobId, action, stateUpdates);
             toast.success(`Action '${action}' executed successfully.`);
             await get().fetchJobDetails(jobId);
-        } catch (err: any) {
-            set({ error: err.message, loading: false });
-            toast.error(err.message || "Failed to execute action.");
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to execute action.";
+            set({ error: message, loading: false });
+            toast.error(message);
         }
     }
 }));

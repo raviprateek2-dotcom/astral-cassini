@@ -1,28 +1,25 @@
+import os
+import tempfile
+from typing import Generator
+from unittest.mock import patch
+
 import pytest
-import asyncio
-from typing import Generator, AsyncGenerator
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, AsyncMock
 
 from app.main import app
 from app.core import database
 from app.core.database import Base, get_db
-from app.models.state import SharedState, PipelineStage
+from app.models.state import SharedState
 from app.config import settings
 
 # Patch orchestrator to avoid background tasks firing automatically in tests
-from unittest.mock import patch
 patch("app.core.orchestrator.start_orchestration").start()
 
-# Test Database Setup
-import os
-import tempfile
-
-# Use a temporary file for the database to ensure isolation and multi-connection support
-db_fd, db_path = tempfile.mkstemp()
-os.close(db_fd)
+# Test Database Setup — temporary file DB for isolation and multi-connection support
+_db_fd, db_path = tempfile.mkstemp()
+os.close(_db_fd)
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -31,6 +28,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Monkeypatch the database module's SessionLocal so background tasks use our test DB
 database.SessionLocal = TestingSessionLocal
 database.engine = engine
+
 
 @pytest.fixture(scope="session", autouse=True)
 def db_setup():
@@ -41,11 +39,13 @@ def db_setup():
     if os.path.exists(db_path):
         os.remove(db_path)
 
+
 @pytest.fixture
 def db() -> Generator[Session, None, None]:
     session = TestingSessionLocal()
     yield session
     session.close()
+
 
 @pytest.fixture
 def client(db) -> Generator[TestClient, None, None]:
@@ -54,11 +54,12 @@ def client(db) -> Generator[TestClient, None, None]:
             yield db
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
 
 @pytest.fixture
 def mock_state() -> SharedState:
@@ -67,8 +68,9 @@ def mock_state() -> SharedState:
         job_title="Senior AI Engineer",
         department="Engineering",
         requirements=["Python", "PyTorch", "Testing"],
-        location="Remote"
+        location="Remote",
     )
+
 
 @pytest.fixture
 def mock_llm_response():
@@ -81,9 +83,10 @@ def mock_llm_response():
             "experience_match": 21.0,
             "education_match": 20.0,
             "cultural_fit": 22.0,
-            "reasoning": "Strong match for PyTorch requirements."
-        }
+            "reasoning": "Strong match for PyTorch requirements.",
+        },
     }
+
 
 @pytest.fixture(autouse=True)
 def mock_settings(monkeypatch):

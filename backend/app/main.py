@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api import jobs, candidates, workflow, websocket, auth, analytics
@@ -18,8 +22,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from contextlib import asynccontextmanager
-import os
+
+def _cors_allow_origins() -> list[str]:
+    """Build a deduplicated list: configured frontend, localhost dev, optional extra origins."""
+    defaults = [
+        settings.frontend_url,
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ]
+    extras = [
+        o.strip()
+        for o in settings.cors_extra_origins.split(",")
+        if o.strip()
+    ]
+    seen: set[str] = set()
+    out: list[str] = []
+    for origin in defaults + extras:
+        if origin not in seen:
+            seen.add(origin)
+            out.append(origin)
+    return out
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,30 +60,40 @@ async def lifespan(app: FastAPI):
     # Initialize SQLAlchemy database tables on startup
     init_db()
     
-    # Auto-create demo users if they don't exist
-    from app.core.database import SessionLocal
-    from app.models.db_models import User
-    from app.core.auth import hash_password
-    db = SessionLocal()
-    try:
-        if not db.query(User).filter(User.email == "admin@prohr.ai").first():
-            db.add(User(
-                email="admin@prohr.ai",
-                full_name="System Admin",
-                hashed_password=hash_password("admin123"),
-                role="admin"
-            ))
-        if not db.query(User).filter(User.email == "hr@prohr.ai").first():
-            db.add(User(
-                email="hr@prohr.ai",
-                full_name="HR Manager",
-                hashed_password=hash_password("hr123"),
-                role="hr_manager",
-                department="Engineering"
-            ))
-        db.commit()
-    finally:
-        db.close()
+    # Auto-create demo users only when explicitly enabled in development.
+    seed_demo_users = os.getenv("SEED_DEMO_USERS", "false").lower() == "true"
+    is_dev = settings.app_env.lower() in {"development", "dev", "local"}
+    if seed_demo_users and is_dev:
+        from app.core.database import SessionLocal
+        from app.models.db_models import User
+        from app.core.auth import hash_password
+        demo_admin_password = os.getenv("DEMO_ADMIN_PASSWORD", "")
+        demo_hr_password = os.getenv("DEMO_HR_PASSWORD", "")
+        if len(demo_admin_password) < 8 or len(demo_hr_password) < 8:
+            raise RuntimeError(
+                "SEED_DEMO_USERS=true requires DEMO_ADMIN_PASSWORD and DEMO_HR_PASSWORD (8+ chars)."
+            )
+
+        db = SessionLocal()
+        try:
+            if not db.query(User).filter(User.email == "admin@prohr.ai").first():
+                db.add(User(
+                    email="admin@prohr.ai",
+                    full_name="System Admin",
+                    hashed_password=hash_password(demo_admin_password),
+                    role="admin"
+                ))
+            if not db.query(User).filter(User.email == "hr@prohr.ai").first():
+                db.add(User(
+                    email="hr@prohr.ai",
+                    full_name="HR Manager",
+                    hashed_password=hash_password(demo_hr_password),
+                    role="hr_manager",
+                    department="Engineering"
+                ))
+            db.commit()
+        finally:
+            db.close()
         
     yield
 
@@ -72,20 +107,32 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware (set FRONTEND_URL + optional CORS_EXTRA_ORIGINS in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ],
+    allow_origins=_cors_allow_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def stable_api_errors(request: Request, call_next):
+    """Turn unhandled exceptions into JSON 500s; preserve FastAPI HTTP and validation errors."""
+    try:
+        return await call_next(request)
+    except HTTPException:
+        raise
+    except RequestValidationError:
+        raise
+    except Exception:
+        logger.exception("Unhandled exception: %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+
 
 # Include routers
 app.include_router(auth.router)

@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import uuid
 import asyncio
-from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.state import SharedState, PipelineStage
@@ -133,6 +132,12 @@ class Orchestrator:
                 ))
                 
         self.db.commit()
+        try:
+            from app.api.websocket import schedule_pipeline_snapshot
+
+            schedule_pipeline_snapshot(self.job_id)
+        except Exception:
+            logger.debug("WebSocket notify skipped for job %s", self.job_id, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -251,8 +256,9 @@ async def resume_workflow(
 
 async def approve_stage(db: Session, job_id: str, feedback: str = "", updated_jd: str | None = None) -> dict:
     job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job: raise ValueError("Job not found")
-    
+    if not job:
+        raise ValueError("Job not found")
+
     updates = {"human_feedback": feedback}
     if updated_jd:
         updates["job_description"] = updated_jd
@@ -262,14 +268,16 @@ async def approve_stage(db: Session, job_id: str, feedback: str = "", updated_jd
 
 async def reject_stage(db: Session, job_id: str, feedback: str) -> dict:
     job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job: raise ValueError("Job not found")
-    
+    if not job:
+        raise ValueError("Job not found")
+
     return await resume_workflow(db, job.created_by_id, job_id, "reject", {"human_feedback": feedback})
 
 
 def get_workflow_status(db: Session, job_id: str) -> dict | None:
     job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job: return None
+    if not job:
+        return None
     return {
         "job_id": job.job_id,
         "job_title": job.job_title,
