@@ -37,7 +37,10 @@ apiClient.interceptors.response.use(
         if (error.response?.status === 401 && typeof window !== 'undefined') {
             localStorage.removeItem("user");
             sessionStorage.removeItem("ws_token");
-            window.location.href = "/login";
+            // Avoid hard-reload loops when /api/auth/me 401s on the login page itself.
+            if (window.location.pathname !== "/login") {
+                window.location.href = "/login";
+            }
         }
         return Promise.reject(new Error(error.response?.data?.detail || error.message || "API Error"));
     }

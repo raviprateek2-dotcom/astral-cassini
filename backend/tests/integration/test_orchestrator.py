@@ -3,7 +3,14 @@ import pytest
 pytestmark = pytest.mark.integration
 
 from unittest.mock import patch
-from app.models.state import SharedState, PipelineStage, ApprovalStatus, CandidateProfile
+from app.models.state import (
+    SharedState,
+    PipelineStage,
+    ApprovalStatus,
+    CandidateProfile,
+    ScoredCandidate,
+    Assessment,
+)
 from app.models.db_models import Job
 from app.core.orchestrator import Orchestrator, start_workflow, resume_workflow
 
@@ -113,3 +120,62 @@ async def test_resume_workflow_approval(db):
             assert job.current_stage == PipelineStage.SHORTLIST_REVIEW.value
             assert job.workflow_state["jd_approval"] == "approved"
             assert job.workflow_state["shortlist_approval"] == ApprovalStatus.PENDING.value
+
+
+@pytest.mark.asyncio
+async def test_pipeline_reaches_final_decision_stage(db):
+    """Decision stage should produce recommendations and halt at HIRE_REVIEW."""
+    job_id = "decision-test"
+    state = SharedState(
+        job_id=job_id,
+        job_title="Senior Backend Engineer",
+        department="Engineering",
+        current_stage=PipelineStage.DECISION.value,
+        jd_approval=ApprovalStatus.APPROVED.value,
+        shortlist_approval=ApprovalStatus.APPROVED.value,
+        scored_candidates=[
+            ScoredCandidate(
+                candidate_id="cand-1",
+                candidate_name="Alice",
+                overall_score=85.0,
+                gaps=[],
+            )
+        ],
+        interview_assessments=[
+            Assessment(
+                candidate_id="cand-1",
+                candidate_name="Alice",
+                technical_score=8.5,
+                communication_score=8.0,
+                problem_solving_score=8.5,
+                cultural_fit_score=8.0,
+                overall_score=8.25,
+                concerns=[],
+            )
+        ],
+    )
+    job = Job(
+        job_id=job_id,
+        job_title=state.job_title,
+        department=state.department,
+        workflow_state=state.model_dump(mode="json"),
+        current_stage=state.current_stage,
+        created_by_id=1,
+    )
+    db.add(job)
+    db.commit()
+
+    orchestrator = Orchestrator(db, job_id)
+    await orchestrator.execute()
+
+    db.expire_all()
+    saved_job = db.query(Job).filter(Job.job_id == job_id).first()
+    assert saved_job is not None
+    assert saved_job.current_stage == PipelineStage.HIRE_REVIEW.value
+
+    saved_state = SharedState(**saved_job.workflow_state)
+    assert len(saved_state.final_recommendations) == 1
+    rec = saved_state.final_recommendations[0]
+    assert rec.candidate_id == "cand-1"
+    assert rec.decision == "hire"
+    assert saved_state.hire_approval == ApprovalStatus.PENDING.value

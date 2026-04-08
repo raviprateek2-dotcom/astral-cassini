@@ -64,6 +64,20 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
     embedding_model: str = "text-embedding-3-small"
 
+    # Calendar integration
+    calendar_provider: Literal["mock", "google"] = Field(
+        default="mock",
+        description="Interview calendar provider. 'mock' returns local fake links, 'google' creates real events.",
+    )
+    google_calendar_id: str = Field(
+        default="primary",
+        description="Google Calendar ID used when calendar_provider='google'.",
+    )
+    google_service_account_json: str = Field(
+        default="",
+        description="Absolute path to Google service account JSON credentials file.",
+    )
+
     @model_validator(mode="after")
     def cookie_none_requires_secure(self) -> "Settings":
         if self.auth_cookie_samesite == "none" and not self.auth_cookie_secure:

@@ -97,6 +97,14 @@ async def lifespan(app: FastAPI):
             db.commit()
         finally:
             db.close()
+
+    google_calendar_ready = bool(settings.google_service_account_json)
+    logger.info(
+        "Calendar provider configured: provider=%s google_credentials_path_set=%s calendar_id=%s",
+        settings.calendar_provider,
+        google_calendar_ready,
+        settings.google_calendar_id if settings.calendar_provider == "google" else "n/a",
+    )
         
     yield
 
