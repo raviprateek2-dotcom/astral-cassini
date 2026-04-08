@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project are documented here.
 
@@ -6,8 +6,9 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Release safety toolkit:** added [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) and CI non-blocking security audit jobs (backend-security-audit, frontend-security-audit) plus README release-process guidance.
 - **WebSocket auth hardening (Phase C):** **`GET /api/auth/ws-ticket`** mints a short-lived JWT (`aud=prohr-ws`, bound to `job_id`) for **`/ws/{job_id}?token=`**. Frontend fetches a ticket before connect/reconnect. Settings: **`ws_ticket_expire_minutes`**, **`ws_allow_legacy_browser_token`** (env: `WS_TICKET_EXPIRE_MINUTES`, `WS_ALLOW_LEGACY_BROWSER_TOKEN`).
-- **`.python-version`** (3.11) and **`backend/mypy-full.ini`** — align local interpreters with CI/Docker; optional full-app **`mypy`** config for the non-blocking CI report job.
+- **`.python-version`** (3.11) and **`backend/mypy-full.ini`** â€” align local interpreters with CI/Docker; optional full-app **`mypy`** config for the non-blocking CI report job.
 
 ### Changed
 
@@ -18,3 +19,4 @@ All notable changes to this project are documented here.
 ### Removed
 
 - **`chroma_persist_dir`** removed from `app.config.Settings`. RAG uses **FAISS** only (`app/rag/embeddings.py`). If you had `CHROMA_PERSIST_DIR` in `.env`, it is now ignored (harmless).
+

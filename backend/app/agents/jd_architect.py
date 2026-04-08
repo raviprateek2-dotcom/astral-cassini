@@ -10,6 +10,7 @@ import json
 import asyncio
 import re
 
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -48,7 +49,7 @@ async def jd_architect_node(state: SharedState) -> SharedState:
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=0.4,
-        api_key=settings.openai_api_key or "mock",
+        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
         streaming=True,
     )
 
@@ -100,13 +101,14 @@ Please incorporate this feedback into the revised job description.
         # Stream the response using LLM
         try:
             async for chunk in llm.astream(messages):
-                if chunk.content:
-                    job_description += chunk.content
+                chunk_text = chunk.content if isinstance(chunk.content, str) else "".join(str(p) for p in chunk.content)
+                if chunk_text:
+                    job_description += chunk_text
                     # Only stream the raw text, filter out XML tags roughly
-                    if ">" in chunk.content or "<" in chunk.content:
+                    if ">" in chunk_text or "<" in chunk_text:
                         continue
                     if state.job_id:
-                        await stream_jd_tokens(state.job_id, chunk.content)
+                        await stream_jd_tokens(state.job_id, chunk_text)
         except Exception as e:
             state.error = f"LLM Error: {str(e)}"
             return state

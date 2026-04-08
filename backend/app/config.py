@@ -55,8 +55,8 @@ class Settings(BaseSettings):
         description="Lifetime of JWTs used only for WebSocket ?token= (aud prohr-ws).",
     )
     ws_allow_legacy_browser_token: bool = Field(
-        default=True,
-        description="If True, accept full session access_token in WS query (deprecated). Set False once all clients use ws-ticket.",
+        default=False,
+        description="If True, accept full session access_token in WS query (deprecated). Keep False in production; enable only for temporary rollback.",
     )
 
     # LLM Defaults

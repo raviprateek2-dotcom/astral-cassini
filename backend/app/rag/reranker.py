@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -22,6 +23,14 @@ reason for the match, and a final refined match score (0-100).
 
 Focus on why the specific skills or experience make them a good fit. 
 Return ONLY a JSON object: {"reason": "...", "refined_score": 85}"""
+
+
+def _coerce_llm_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(part) for part in content)
+    return str(content)
 
 async def rerank_candidates(jd_text: str, candidates: list[dict]) -> list[dict]:
     """Perform LLM-based reranking on the top candidates.
@@ -39,7 +48,7 @@ async def rerank_candidates(jd_text: str, candidates: list[dict]) -> list[dict]:
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=0,
-        api_key=settings.openai_api_key,
+        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
     )
 
     reranked = []
@@ -49,14 +58,22 @@ async def rerank_candidates(jd_text: str, candidates: list[dict]) -> list[dict]:
 
     for cand in top_n:
         try:
-            profile = f"Name: {cand.get('name')}\nSkills: {', '.join(cand.get('skills', []))}\nExp: {cand.get('experience_years')} years\nSummary: {cand.get('resume_text')[:1000]}"
+            raw_skills = cand.get("skills", [])
+            skills = raw_skills if isinstance(raw_skills, list) else [str(raw_skills)]
+            resume_text = str(cand.get("resume_text", ""))
+            profile = (
+                f"Name: {cand.get('name')}\n"
+                f"Skills: {', '.join(str(s) for s in skills)}\n"
+                f"Exp: {cand.get('experience_years')} years\n"
+                f"Summary: {resume_text[:1000]}"
+            )
             
             res = await llm.ainvoke([
                 SystemMessage(content=RERANKER_PROMPT),
                 HumanMessage(content=f"JD: {jd_text}\n\nCandidate Profile:\n{profile}")
             ])
             
-            content = res.content
+            content = _coerce_llm_text(res.content)
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             

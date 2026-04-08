@@ -13,6 +13,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -36,6 +37,14 @@ JSON schema per object:
 OFFER_PROMPT = """You are a Compensation Specialist. Generate a professional Markdown
 offer letter for the successful candidate based on the job details and performance."""
 
+
+def _coerce_llm_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(part) for part in content)
+    return str(content)
+
 async def coordinator_node(state: SharedState) -> SharedState:
     """Central execution node for the final hiring stages."""
     current_stage = state.current_stage
@@ -43,7 +52,7 @@ async def coordinator_node(state: SharedState) -> SharedState:
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=0.1,
-        api_key=settings.openai_api_key or "mock",
+        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
     )
     
     if current_stage == PipelineStage.SCHEDULING.value:
@@ -92,8 +101,19 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             status="scheduled"
         ))
         
-        schedule_meeting(title=f"Interview: {c.candidate_name}", time=tm.isoformat())
-        send_interview_invitation(to_email=f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com", candidate_name=c.candidate_name, job_title=state.job_title)
+        meeting = schedule_meeting(
+            title=f"Interview: {c.candidate_name}",
+            time=tm.isoformat(),
+            duration=60,
+            attendees=[f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com"],
+        )
+        send_interview_invitation(
+            to_email=f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com",
+            candidate_name=c.candidate_name,
+            job_title=state.job_title,
+            interview_time=tm.isoformat(),
+            meeting_link=meeting["meeting_link"],
+        )
 
     state.scheduled_interviews = scheduled
     state.current_stage = PipelineStage.INTERVIEWING.value
@@ -109,7 +129,7 @@ async def _handle_interview_analysis(state: SharedState, llm: ChatOpenAI) -> Sha
     else:
         try:
             res = await llm.ainvoke([SystemMessage(content=INTERVIEWER_PROMPT), HumanMessage(content=f"Data: {chr(10).join(transcripts)}")])
-            content = res.content
+            content = _coerce_llm_text(res.content)
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
@@ -196,10 +216,11 @@ async def _handle_offer_generation(state: SharedState, llm: ChatOpenAI) -> Share
 
     try:
         res = await llm.ainvoke([SystemMessage(content=OFFER_PROMPT), HumanMessage(content=f"Draft for {top.candidate_name} for role {state.job_title} at {state.salary_range}")])
+        offer_markdown = _coerce_llm_text(res.content)
         offer = OfferRecord(
             candidate_id=top.candidate_id, 
             candidate_name=top.candidate_name, 
-            offer_markdown=res.content, 
+            offer_markdown=offer_markdown,
             status="draft"
         )
     except Exception:

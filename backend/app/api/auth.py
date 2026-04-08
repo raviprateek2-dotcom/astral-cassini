@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.database import get_db
+from app.core.observability import increment
 from app.core.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     WS_TOKEN_AUDIENCE,
@@ -80,7 +81,13 @@ async def login(
 ):
     """Login and return a JWT access token."""
     user = db.query(User).filter(User.email == form.username).first()
-    if not user or not verify_password(form.password, user.hashed_password):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+        )
+    hashed_password = str(user.hashed_password)
+    if not verify_password(form.password, hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -88,14 +95,19 @@ async def login(
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account deactivated")
 
-    user.last_login = datetime.now(timezone.utc)
+    cast(Any, user).last_login = datetime.now(timezone.utc)
     db.commit()
 
-    token = create_access_token({"sub": str(user.id), "role": user.role})
+    token = create_access_token({"sub": str(int(user.id)), "role": str(user.role)})
     _set_session_cookie(response, token)
     return TokenResponse(
         access_token=token,
-        user={"id": user.id, "email": user.email, "full_name": user.full_name, "role": user.role},
+        user={
+            "id": int(user.id),
+            "email": str(user.email),
+            "full_name": str(user.full_name),
+            "role": str(user.role),
+        },
     )
 
 
@@ -121,11 +133,16 @@ async def register(
     db.commit()
     db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id), "role": user.role})
+    token = create_access_token({"sub": str(int(user.id)), "role": str(user.role)})
     _set_session_cookie(response, token)
     return TokenResponse(
         access_token=token,
-        user={"id": user.id, "email": user.email, "full_name": user.full_name, "role": user.role},
+        user={
+            "id": int(user.id),
+            "email": str(user.email),
+            "full_name": str(user.full_name),
+            "role": str(user.role),
+        },
     )
 
 
@@ -148,14 +165,17 @@ async def issue_ws_ticket(
     """
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
+        increment("ws_ticket_denied")
         raise HTTPException(status_code=404, detail="Job not found")
     if not user_may_subscribe_job_ws(current_user, job):
+        increment("ws_ticket_denied")
         raise HTTPException(status_code=403, detail="Not allowed to subscribe to this job")
     ticket = create_ws_ticket(
-        current_user.id,
+        int(current_user.id),
         job_id,
         settings.ws_ticket_expire_minutes,
     )
+    increment("ws_ticket_issued")
     return {
         "ticket": ticket,
         "aud": WS_TOKEN_AUDIENCE,
@@ -167,12 +187,12 @@ async def issue_ws_ticket(
 async def me(current_user: Annotated[User, Depends(get_current_user)]):
     """Return currently authenticated user's profile."""
     return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        role=current_user.role,
-        department=current_user.department,
-        is_active=current_user.is_active,
+        id=int(current_user.id),
+        email=str(current_user.email),
+        full_name=str(current_user.full_name),
+        role=str(current_user.role),
+        department=str(current_user.department) if current_user.department is not None else None,
+        is_active=bool(current_user.is_active),
     )
 
 

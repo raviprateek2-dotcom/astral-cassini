@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Any
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
-from app.models.state import RecruitmentState, PipelineStage
+from app.models.state import PipelineStage
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +35,10 @@ def create_response_tracker():
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=0.7,
-        api_key=settings.openai_api_key,
+        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
     )
 
-    async def response_tracker_node(state: RecruitmentState) -> dict:
+    async def response_tracker_node(state: dict[str, Any]) -> dict:
         """Simulate candidate engagement. If no response, transitions to SCHEDULING."""
         
         current_stage = state.get("current_stage")

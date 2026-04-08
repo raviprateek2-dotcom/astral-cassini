@@ -167,3 +167,123 @@ async def test_ws_ticket_unknown_job(client, db):
     client.cookies.set("access_token", token)
     response = client.get("/api/auth/ws-ticket", params={"job_id": "nope-nope"})
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_websocket_connects_with_ws_ticket(client, db):
+    """End-to-end WS auth path: cookie session -> ws-ticket -> /ws connect."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.api import websocket as websocket_api
+    from app.core.auth import create_access_token, hash_password
+    from app.core.orchestrator import start_workflow
+    from app.models.db_models import User
+
+    user = User(
+        email="ws-connect-test@example.com",
+        full_name="WS Connect Test",
+        hashed_password=hash_password("unused"),
+        role="hr_manager",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    result = await start_workflow(db, int(user.id), "WS Connect Role", "Eng", ["Python"])
+    job_id = result["job_id"]
+
+    token = create_access_token({"sub": str(int(user.id)), "role": str(user.role)})
+    client.cookies.set("access_token", token)
+
+    ticket_res = client.get("/api/auth/ws-ticket", params={"job_id": job_id})
+    assert ticket_res.status_code == status.HTTP_200_OK
+    ticket = ticket_res.json()["ticket"]
+
+    # websocket.py imports SessionLocal at module import time; bind it to test DB for this test.
+    websocket_api.SessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=db.get_bind(),
+    )
+
+    with client.websocket_connect(f"/ws/{job_id}?token={ticket}") as ws:
+        first = ws.receive_json()
+        assert first["type"] == "connected"
+        assert first["job_id"] == job_id
+        assert first["data"]["current_stage"] == PipelineStage.JD_DRAFTING.value
+
+
+@pytest.mark.asyncio
+async def test_observability_metrics_admin_only(client):
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="admin@prohr.ai",
+        role="admin",
+        is_active=True,
+    )
+    response = client.get("/api/analytics/observability")
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert "observability" in body
+    assert "ws_ticket_issued" in body["observability"]
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_observability_metrics_forbidden_for_non_admin(client):
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=2,
+        email="hr@prohr.ai",
+        role="hr_manager",
+        is_active=True,
+    )
+    response = client.get("/api/analytics/observability")
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_admin_only(client):
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=3,
+        email="admin2@prohr.ai",
+        role="admin",
+        is_active=True,
+    )
+    response = client.get("/api/analytics/metrics")
+    assert response.status_code == status.HTTP_200_OK
+    assert "text/plain" in response.headers.get("content-type", "")
+    body = response.text
+    assert "prohr_ws_ticket_issued_total" in body
+    assert "prohr_ws_connect_success_total" in body
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_prometheus_metrics_forbidden_for_non_admin(client):
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=4,
+        email="viewer@prohr.ai",
+        role="viewer",
+        is_active=True,
+    )
+    response = client.get("/api/analytics/metrics")
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    app.dependency_overrides.pop(get_current_user)

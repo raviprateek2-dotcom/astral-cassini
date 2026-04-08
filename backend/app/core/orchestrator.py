@@ -36,6 +36,7 @@ class Orchestrator:
             raise ValueError(f"Job {job_id} not found in DB.")
             
         # Parse Pydantic state
+        self.state: SharedState
         if isinstance(self.job.workflow_state, dict):
             self.state = SharedState(**self.job.workflow_state)
         elif isinstance(self.job.workflow_state, SharedState):
@@ -218,7 +219,7 @@ async def resume_workflow(
 ) -> dict:
     
     orchestrator = Orchestrator(db, job_id)
-    state = orchestrator.state
+    state: SharedState = orchestrator.state
     
     if state_updates:
         for k, v in state_updates.items():
@@ -258,20 +259,29 @@ async def approve_stage(db: Session, job_id: str, feedback: str = "", updated_jd
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise ValueError("Job not found")
+    owner_id = _require_job_owner_id(job)
 
     updates = {"human_feedback": feedback}
     if updated_jd:
         updates["job_description"] = updated_jd
         
-    return await resume_workflow(db, job.created_by_id, job_id, "approve", updates)
+    return await resume_workflow(db, owner_id, job_id, "approve", updates)
 
 
 async def reject_stage(db: Session, job_id: str, feedback: str) -> dict:
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise ValueError("Job not found")
+    owner_id = _require_job_owner_id(job)
 
-    return await resume_workflow(db, job.created_by_id, job_id, "reject", {"human_feedback": feedback})
+    return await resume_workflow(db, owner_id, job_id, "reject", {"human_feedback": feedback})
+
+
+def _require_job_owner_id(job: Job) -> int:
+    owner_id = job.created_by_id
+    if owner_id is None:
+        raise ValueError("Job owner is missing")
+    return int(owner_id)
 
 
 def get_workflow_status(db: Session, job_id: str) -> dict | None:

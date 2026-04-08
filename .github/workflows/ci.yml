@@ -50,6 +50,42 @@ jobs:
       - name: Mypy (full app)
         run: python -m mypy --config-file mypy-full.ini app
 
+  backend-security-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install audit tooling
+        run: |
+          pip install -r requirements.txt
+          pip install pip-audit
+      - name: pip-audit (high/critical report)
+        run: python -m pip_audit
+
+  frontend-security-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: npm audit (high/critical)
+        run: npm audit --audit-level=high
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

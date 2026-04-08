@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -14,6 +16,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.api import jobs, candidates, workflow, websocket, auth, analytics
 from app.core.database import init_db
+from app.core.observability import snapshot as observability_snapshot
 
 # Configure logging
 logging.basicConfig(
@@ -120,17 +123,38 @@ app.add_middleware(
 @app.middleware("http")
 async def stable_api_errors(request: Request, call_next):
     """Turn unhandled exceptions into JSON 500s; preserve FastAPI HTTP and validation errors."""
+    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+    start = time.perf_counter()
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["x-request-id"] = request_id
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "request completed id=%s method=%s path=%s status=%s duration_ms=%.1f",
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+        return response
     except HTTPException:
         raise
     except RequestValidationError:
         raise
     except Exception:
-        logger.exception("Unhandled exception: %s %s", request.method, request.url.path)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.exception(
+            "Unhandled exception id=%s method=%s path=%s duration_ms=%.1f",
+            request_id,
+            request.method,
+            request.url.path,
+            elapsed_ms,
+        )
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"},
+            headers={"x-request-id": request_id},
+            content={"detail": "Internal server error", "request_id": request_id},
         )
 
 
@@ -165,6 +189,7 @@ async def health():
         "embedding_model": settings.embedding_model,
         "indexed_resumes": get_collection_count(),
         "openai_configured": bool(settings.openai_api_key),
+        "observability": observability_snapshot(),
     }
 
 

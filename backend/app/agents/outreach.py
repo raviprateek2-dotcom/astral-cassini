@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Any
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
-from app.models.state import RecruitmentState, PipelineStage
+from app.models.state import PipelineStage
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +37,10 @@ def create_outreach_agent():
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=0.7,
-        api_key=settings.openai_api_key,
+        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
     )
 
-    async def outreach_node(state: RecruitmentState) -> dict:
+    async def outreach_node(state: dict[str, Any]) -> dict:
         """Generate personalized emails for shortlisted candidates."""
         
         current_stage = state.get("current_stage")

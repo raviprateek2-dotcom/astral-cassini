@@ -96,13 +96,23 @@ They are **legacy naming** (older “7-agent” story); behavior is still useful
 
 ### WebSocket auth note
 
-The browser passes the JWT as a **query parameter** on `/ws/{job_id}` (`sessionStorage` copy after login). That keeps WS simple across origins but means **XSS could exfiltrate the token**—treat frontend XSS as in-scope for security review. Tighter patterns (short-lived WS tickets, same-site-only WS) are a follow-on hardening step.
+For WebSockets, the query param must be a **short-lived WS ticket** (`aud=prohr-ws`, short `exp`, includes `job_id`) minted by **`GET /api/auth/ws-ticket?job_id=`**. The long-lived session JWT stays in the HttpOnly cookie path for REST.
+
+`WS_ALLOW_LEGACY_BROWSER_TOKEN` defaults to **false**. Keep it false in production; enable only as a temporary rollback lever while migrating older clients.
 
 ## Frontend integration
 
 - **`frontend/src/lib/api.ts`**: Axios to `/api` (same origin with rewrites) or `NEXT_PUBLIC_API_URL`.
 - **`frontend/src/types/domain.ts`**: Shared shapes for jobs, workflow state, audit entries.
 - **E2E:** `frontend/e2e/` Playwright smoke tests; see root README CI section.
+
+## Observability
+
+- **Request correlation:** HTTP middleware assigns/propagates `x-request-id` and logs request duration (`duration_ms`) and status.
+- **Health counters:** `GET /api/health` includes in-memory counters for WS ticket issuance/denials and WS connect success/rejections.
+- **Admin metrics endpoints:**
+  - `GET /api/analytics/observability` (JSON)
+  - `GET /api/analytics/metrics` (Prometheus-style plaintext)
 
 ## Environment & deployment inventory (Phase A)
 

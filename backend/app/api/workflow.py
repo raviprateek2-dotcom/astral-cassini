@@ -76,7 +76,7 @@ async def patch_state(
     try:
         result = await resume_workflow(
             db=db,
-            user_id=current_user.id,
+            user_id=int(current_user.id),
             job_id=job_id,
             action=req.action,
             state_updates=req.state_updates

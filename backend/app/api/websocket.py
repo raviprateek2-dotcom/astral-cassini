@@ -18,6 +18,7 @@ from jose import JWTError, jwt
 
 from app.config import settings
 from app.core.database import SessionLocal
+from app.core.observability import increment
 from app.core.auth import (
     ALGORITHM,
     SECRET_KEY,
@@ -97,6 +98,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     """
     token = websocket.query_params.get("token")
     if not token:
+        increment("ws_connect_rejected")
         await websocket.close(code=4401, reason="Missing token")
         return
 
@@ -111,6 +113,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
 
         if payload is not None:
             if payload.get("job_id") != job_id:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4403, reason="Ticket job mismatch")
                 return
             uid = payload.get("sub")
@@ -121,36 +124,45 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
                 user = None
         else:
             if not settings.ws_allow_legacy_browser_token:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4401, reason="Invalid or expired ticket")
                 return
             try:
                 legacy = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
             except JWTError:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4401, reason="Unauthorized")
                 return
             if legacy.get("aud") == WS_TOKEN_AUDIENCE:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4401, reason="Unauthorized")
                 return
             uid = legacy.get("sub")
             user = db.get(User, int(uid)) if uid else None
             if not user or not user.is_active:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4401, reason="Unauthorized")
                 return
             if not job:
+                increment("ws_connect_rejected")
                 await websocket.close(code=4404, reason="Job not found")
                 return
             if not user_may_subscribe_job_ws(user, job):
+                increment("ws_connect_rejected")
                 await websocket.close(code=4403, reason="Forbidden")
                 return
 
     if not job:
+        increment("ws_connect_rejected")
         await websocket.close(code=4404, reason="Job not found")
         return
     if not user or not user.is_active:
+        increment("ws_connect_rejected")
         await websocket.close(code=4401, reason="Unauthorized")
         return
 
     await websocket.accept()
+    increment("ws_connect_success")
     _connections[job_id].append(websocket)
     logger.info(f"WS connected: user={user.id}, job={job_id}, total={len(_connections[job_id])}")
 

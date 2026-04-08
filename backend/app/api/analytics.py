@@ -7,17 +7,25 @@ from collections import defaultdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
-from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, Outreach, Offer
+from app.core.observability import snapshot as observability_snapshot
+from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, Outreach, Offer, User
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 
-def _auth(current_user=Depends(get_current_user)):
+def _auth(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    return current_user
+
+
+def _admin_only(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    if str(current_user.role) != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
     return current_user
 
 
@@ -57,7 +65,7 @@ async def score_distribution(
 ):
     """Histogram of candidate screening scores in buckets of 10."""
     scores = db.query(CandidateScore.overall_score).all()
-    buckets = defaultdict(int)
+    buckets: dict[str, int] = defaultdict(int)
     for (score,) in scores:
         bucket = int(score // 10) * 10
         bucket = min(bucket, 90)
@@ -122,7 +130,7 @@ async def time_to_hire(
         if job.created_at and job.completed_at:
             try:
                 days = (job.completed_at - job.created_at).total_seconds() / 86400
-                by_dept[job.department or "Unknown"].append(days)
+                by_dept[str(job.department or "Unknown")].append(days)
             except (TypeError, AttributeError):
                 continue
 
@@ -149,7 +157,7 @@ async def job_roi(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    state = job.workflow_state or {}
+    state: dict = dict(job.workflow_state or {})
     candidates_count = len(state.get("candidates", []))
     len(state.get("scored_candidates", []))
     interviews_count = len(state.get("scheduled_interviews", []))
@@ -246,7 +254,7 @@ async def get_full_dashboard(
             if job.created_at and job.completed_at:
                 try:
                     days = (job.completed_at - job.created_at).total_seconds() / 86400
-                    by_dept[job.department or "Unknown"].append(days)
+                    by_dept[str(job.department or "Unknown")].append(days)
                 except (TypeError, AttributeError):
                     continue
         time_data = [
@@ -320,3 +328,35 @@ async def summary(
         "pending_approvals": pending_approvals,
         "average_screening_score": round(score_val, 1),
     }
+
+
+@router.get("/observability")
+async def observability_metrics(
+    _: Annotated[User, Depends(_admin_only)],
+):
+    """Lightweight in-memory operational counters (admin only)."""
+    return {"observability": observability_snapshot()}
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def metrics_text(
+    _: Annotated[User, Depends(_admin_only)],
+):
+    """Prometheus-style text metrics for lightweight operational counters (admin only)."""
+    metrics = observability_snapshot()
+    lines = [
+        "# HELP prohr_ws_ticket_issued_total Total number of WebSocket tickets issued.",
+        "# TYPE prohr_ws_ticket_issued_total counter",
+        f"prohr_ws_ticket_issued_total {metrics.get('ws_ticket_issued', 0)}",
+        "# HELP prohr_ws_ticket_denied_total Total number of denied WebSocket ticket requests.",
+        "# TYPE prohr_ws_ticket_denied_total counter",
+        f"prohr_ws_ticket_denied_total {metrics.get('ws_ticket_denied', 0)}",
+        "# HELP prohr_ws_connect_success_total Total successful WebSocket connections.",
+        "# TYPE prohr_ws_connect_success_total counter",
+        f"prohr_ws_connect_success_total {metrics.get('ws_connect_success', 0)}",
+        "# HELP prohr_ws_connect_rejected_total Total rejected WebSocket connections.",
+        "# TYPE prohr_ws_connect_rejected_total counter",
+        f"prohr_ws_connect_rejected_total {metrics.get('ws_connect_rejected', 0)}",
+        "",
+    ]
+    return "\n".join(lines)

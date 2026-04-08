@@ -55,7 +55,7 @@ async def create_job(
     """
     result = await start_workflow(
         db=db,
-        user_id=current_user.id,
+        user_id=int(current_user.id),
         job_title=req.job_title,
         department=req.department,
         requirements=req.requirements,
@@ -112,7 +112,8 @@ async def upload_resume(
          raise HTTPException(status_code=400, detail=f"Cannot upload resumes in stage: {status['current_stage']}")
 
     # 1. Save uploaded file temporarily
-    if not file.filename.endswith(".pdf"):
+    filename = file.filename or ""
+    if not filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
         
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -131,7 +132,7 @@ async def upload_resume(
         parsed["id"] = candidate_id
         
         # Override source file name to be original filename
-        parsed["source_file"] = file.filename
+        parsed["source_file"] = filename
         
         # Index into vector database
         index_resume(parsed)
@@ -166,14 +167,14 @@ async def upload_resume(
     try:
         updated_state = await resume_workflow(
             db=db,
-            user_id=current_user.id,
+            user_id=int(current_user.id),
             job_id=job_id,
             action="upload_resume",
             state_updates={"candidates": candidates}
         )
         return {
             "status": "success",
-            "message": f"Resume '{file.filename}' parsed and added to candidate pool.",
+            "message": f"Resume '{filename}' parsed and added to candidate pool.",
             "candidate": new_candidate,
             "current_stage": updated_state.get("current_stage")
         }

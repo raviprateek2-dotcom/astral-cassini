@@ -11,6 +11,7 @@ import os
 from typing import Any
 import uuid
 
+from pydantic import SecretStr
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -30,7 +31,7 @@ def _get_vectorstore() -> FAISS:
     if _vectorstore is None:
         embeddings = OpenAIEmbeddings(
             model=settings.embedding_model,
-            api_key=settings.openai_api_key,
+            api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
         )
         
         # Load from disk if exists
