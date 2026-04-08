@@ -37,9 +37,10 @@ apiClient.interceptors.response.use(
         if (error.response?.status === 401 && typeof window !== 'undefined') {
             localStorage.removeItem("user");
             sessionStorage.removeItem("ws_token");
-            // Avoid hard-reload loops when /api/auth/me 401s on the login page itself.
-            if (window.location.pathname !== "/login") {
-                window.location.href = "/login";
+            // Stay on login (wrong-password 401) or landing; otherwise send users to the landing page.
+            const p = window.location.pathname;
+            if (p !== "/login" && p !== "/") {
+                window.location.href = "/";
             }
         }
         return Promise.reject(new Error(error.response?.data?.detail || error.message || "API Error"));
@@ -104,6 +105,7 @@ export type HealthResponse = {
     embedding_model?: string;
     indexed_resumes?: number;
     openai_configured?: boolean;
+    observability?: Record<string, number>;
 };
 
 export type AnalyticsDashboardPayload = {

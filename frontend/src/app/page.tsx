@@ -1,19 +1,11 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
 
 export default function LandingPage() {
     const { user, loading } = useAuth();
-    const router = useRouter();
-
-    useEffect(() => {
-        if (!loading && user) {
-            router.push("/dashboard");
-        }
-    }, [user, loading, router]);
 
     const teamMembers = [
         { 
@@ -158,11 +150,19 @@ export default function LandingPage() {
                     </p>
 
                     <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
-                        <Link href="/login">
-                            <button className="btn-primary" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
-                                Launch Control Center
-                            </button>
-                        </Link>
+                        {!loading && user ? (
+                            <Link href="/dashboard">
+                                <button className="btn-primary" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                                    Go to Dashboard
+                                </button>
+                            </Link>
+                        ) : (
+                            <Link href="/login">
+                                <button className="btn-primary" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                                    Launch Control Center
+                                </button>
+                            </Link>
+                        )}
                         <button
                             className="btn-outline"
                             style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px" }}

@@ -18,7 +18,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
-from app.models.state import SharedState, PipelineStage, Interview, Assessment, Recommendation, OfferRecord
+from app.models.state import SharedState, PipelineStage, Interview, Assessment, Recommendation, OfferRecord, DecisionTrace
 from app.tools.calendar_tool import schedule_meeting
 from app.tools.email_tool import send_interview_invitation
 
@@ -48,22 +48,31 @@ def _coerce_llm_text(content: object) -> str:
 async def coordinator_node(state: SharedState) -> SharedState:
     """Central execution node for the final hiring stages."""
     current_stage = state.current_stage
-    
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=0.1,
-        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
-    )
-    
+
     if current_stage == PipelineStage.SCHEDULING.value:
         return await _handle_scheduling(state)
-    elif current_stage == PipelineStage.INTERVIEWING.value:
+    if current_stage == PipelineStage.INTERVIEWING.value:
+        # Avoid constructing ChatOpenAI without a key (OpenAI SDK rejects api_key=None).
+        llm: ChatOpenAI | None = None
+        if state.interview_transcripts and settings.openai_api_key:
+            llm = ChatOpenAI(
+                model=settings.llm_model,
+                temperature=0.1,
+                api_key=SecretStr(settings.openai_api_key),
+            )
         return await _handle_interview_analysis(state, llm)
-    elif current_stage == PipelineStage.DECISION.value:
+    if current_stage == PipelineStage.DECISION.value:
         return await _handle_final_decision(state)
-    elif current_stage == PipelineStage.OFFER.value:
+    if current_stage == PipelineStage.OFFER.value:
+        llm = None
+        if settings.openai_api_key:
+            llm = ChatOpenAI(
+                model=settings.llm_model,
+                temperature=0.1,
+                api_key=SecretStr(settings.openai_api_key),
+            )
         return await _handle_offer_generation(state, llm)
-        
+
     return state
 
 
@@ -82,6 +91,13 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
     for i, c in enumerate(top):
         tm = base_time + timedelta(days=i, hours=10)
         
+        meeting = schedule_meeting(
+            title=f"Interview: {c.candidate_name}",
+            time=tm.isoformat(),
+            duration=60,
+            attendees=[f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com"],
+        )
+        meet_link = str(meeting.get("meeting_link", "") or "")
         # Technical
         scheduled.append(Interview(
             id=f"int-{c.candidate_id}-tech",
@@ -89,6 +105,7 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             candidate_name=c.candidate_name,
             interview_type="technical",
             scheduled_time=tm.isoformat(),
+            meeting_link=meet_link,
             status="scheduled"
         ))
         # Behavioral
@@ -98,21 +115,15 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             candidate_name=c.candidate_name,
             interview_type="behavioral",
             scheduled_time=(tm + timedelta(hours=3)).isoformat(),
+            meeting_link=meet_link,
             status="scheduled"
         ))
-        
-        meeting = schedule_meeting(
-            title=f"Interview: {c.candidate_name}",
-            time=tm.isoformat(),
-            duration=60,
-            attendees=[f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com"],
-        )
         send_interview_invitation(
             to_email=f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com",
             candidate_name=c.candidate_name,
             job_title=state.job_title,
             interview_time=tm.isoformat(),
-            meeting_link=meeting["meeting_link"],
+            meeting_link=meet_link,
         )
 
     state.scheduled_interviews = scheduled
@@ -120,10 +131,16 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
     state.log_audit("Ops Coordinator", "scheduled", f"Scheduled {len(scheduled)} interviews", PipelineStage.SCHEDULING.value)
     return state
 
-async def _handle_interview_analysis(state: SharedState, llm: ChatOpenAI) -> SharedState:
+async def _handle_interview_analysis(
+    state: SharedState,
+    llm: ChatOpenAI | None,
+) -> SharedState:
     transcripts = state.interview_transcripts
     if not transcripts:
         # Generate mock assessments if no real transcripts available
+        cands = {c.candidate_id: c.candidate_name for c in state.scored_candidates}
+        assessments_dicts = _generate_mock_assessments(cands)
+    elif llm is None:
         cands = {c.candidate_id: c.candidate_name for c in state.scored_candidates}
         assessments_dicts = _generate_mock_assessments(cands)
     else:
@@ -155,6 +172,7 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
     assessments_dict = {a.candidate_id: a for a in state.interview_assessments}
     
     recommendations = []
+    traces: list[DecisionTrace] = []
     
     for sc in scored:
         cid = sc.candidate_id
@@ -192,11 +210,24 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
             reasoning=reasoning,
             risk_factors=sc.gaps + (assessment.concerns if assessment else [])
         ))
+        traces.append(
+            DecisionTrace(
+                candidate_id=cid,
+                candidate_name=sc.candidate_name,
+                screening_score=round(scr_score, 1),
+                interview_score_scaled=round(int_score, 1),
+                concerns_count=missing_crit,
+                weighted_score=round(weighted, 1),
+                decision=decision,
+                rule_applied="weighted>=75&&concerns<3=>hire; weighted>=60=>maybe; else no_hire",
+            )
+        )
 
     # Sort so hires are at the top
     recommendations.sort(key=lambda x: (x.decision == 'hire', x.overall_weighted_score), reverse=True)
 
     state.final_recommendations = recommendations
+    state.decision_traces = traces
     state.current_stage = PipelineStage.HIRE_REVIEW.value
     state.hire_approval = "pending"
     
@@ -206,12 +237,27 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
     return state
 
 
-async def _handle_offer_generation(state: SharedState, llm: ChatOpenAI) -> SharedState:
+async def _handle_offer_generation(
+    state: SharedState,
+    llm: ChatOpenAI | None,
+) -> SharedState:
     recs = state.final_recommendations
     top = next((r for r in recs if r.decision == "hire"), recs[0] if recs else None)
     
     if not top: 
         state.current_stage = PipelineStage.COMPLETED.value
+        return state
+
+    if llm is None:
+        offer = OfferRecord(
+            candidate_id=top.candidate_id,
+            candidate_name=top.candidate_name,
+            offer_markdown="# Offer Letter\n\nMock offer (no LLM key).",
+            status="draft",
+        )
+        state.offer_details = [offer]
+        state.current_stage = PipelineStage.COMPLETED.value
+        state.log_audit("Ops Coordinator", "offered", "Offer letter drafted (mock)", PipelineStage.OFFER.value)
         return state
 
     try:

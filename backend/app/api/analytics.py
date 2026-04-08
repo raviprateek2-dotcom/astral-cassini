@@ -344,6 +344,9 @@ async def metrics_text(
 ):
     """Prometheus-style text metrics for lightweight operational counters (admin only)."""
     metrics = observability_snapshot()
+    duration_count = metrics.get("agent_duration_ms_count", 0)
+    duration_sum = metrics.get("agent_duration_ms_sum", 0)
+    avg_duration = (duration_sum / duration_count) if duration_count else 0.0
     lines = [
         "# HELP prohr_ws_ticket_issued_total Total number of WebSocket tickets issued.",
         "# TYPE prohr_ws_ticket_issued_total counter",
@@ -357,6 +360,21 @@ async def metrics_text(
         "# HELP prohr_ws_connect_rejected_total Total rejected WebSocket connections.",
         "# TYPE prohr_ws_connect_rejected_total counter",
         f"prohr_ws_connect_rejected_total {metrics.get('ws_connect_rejected', 0)}",
+        "# HELP prohr_agent_runs_success_total Total successful agent executions.",
+        "# TYPE prohr_agent_runs_success_total counter",
+        f"prohr_agent_runs_success_total {metrics.get('agent_runs_success', 0)}",
+        "# HELP prohr_agent_runs_failed_total Total failed agent executions.",
+        "# TYPE prohr_agent_runs_failed_total counter",
+        f"prohr_agent_runs_failed_total {metrics.get('agent_runs_failed', 0)}",
+        "# HELP prohr_agent_duration_ms_sum Sum of all agent durations in milliseconds.",
+        "# TYPE prohr_agent_duration_ms_sum counter",
+        f"prohr_agent_duration_ms_sum {duration_sum}",
+        "# HELP prohr_agent_duration_ms_count Total count of measured agent durations.",
+        "# TYPE prohr_agent_duration_ms_count counter",
+        f"prohr_agent_duration_ms_count {duration_count}",
+        "# HELP prohr_agent_duration_ms_avg Average agent duration in milliseconds.",
+        "# TYPE prohr_agent_duration_ms_avg gauge",
+        f"prohr_agent_duration_ms_avg {avg_duration:.2f}",
         "",
     ]
     return "\n".join(lines)

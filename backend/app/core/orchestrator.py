@@ -8,19 +8,29 @@ from __future__ import annotations
 import logging
 import uuid
 import asyncio
+import time
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
-from app.models.state import SharedState, PipelineStage
+from app.models.state import SharedState, PipelineStage, CandidateResponse
 from app.models.db_models import Job, AuditEvent
+from app.core.observability import increment, record_agent_run
+from app.config import settings
 
 from app.agents.jd_architect import jd_architect_node
 from app.agents.liaison import liaison_node
 from app.agents.scout import scout_node
 from app.agents.screener import screener_node
 from app.agents.coordinator import coordinator_node
+from app.agents.outreach import create_outreach_agent
+from app.agents.response_tracker import create_response_tracker
+from app.agents.offer_generator import create_offer_generator
 
 
 logger = logging.getLogger(__name__)
+_outreach_node = create_outreach_agent()
+_response_tracker_node = create_response_tracker()
+_offer_generator_node = create_offer_generator()
 
 
 class Orchestrator:
@@ -63,30 +73,38 @@ class Orchestrator:
             # Node execution routing
             try:
                 if current_stage == PipelineStage.JD_DRAFTING.value:
-                    self.state = await jd_architect_node(self.state)
+                    self.state = await self._run_agent("jd_architect", jd_architect_node, self.state)
                 
                 elif current_stage == PipelineStage.JD_REVIEW.value:
-                    self.state = await liaison_node(self.state)
+                    self.state = await self._run_agent("liaison", liaison_node, self.state)
                     
                 elif current_stage == PipelineStage.SOURCING.value:
-                    self.state = await scout_node(self.state)
+                    self.state = await self._run_agent("scout", scout_node, self.state)
                     
                 elif current_stage == PipelineStage.SCREENING.value:
-                    self.state = await screener_node(self.state)
+                    self.state = await self._run_agent("screener", screener_node, self.state)
                     
                 elif current_stage == PipelineStage.SHORTLIST_REVIEW.value:
-                    self.state = await liaison_node(self.state)
+                    self.state = await self._run_agent("liaison", liaison_node, self.state)
+
+                elif current_stage == PipelineStage.OUTREACH.value:
+                    self.state = await self._run_agent("outreach", _outreach_node, self.state)
+
+                elif current_stage == PipelineStage.ENGAGEMENT.value:
+                    self.state = await self._run_agent("response_tracker", _response_tracker_node, self.state)
                     
-                # Coordinator consolidates SCHEDULING -> INTERVIEWING -> DECISION -> HIRE_REVIEW -> OFFER
+                # Coordinator consolidates SCHEDULING -> INTERVIEWING -> DECISION -> HIRE_REVIEW
                 elif current_stage in (PipelineStage.SCHEDULING.value, 
                                        PipelineStage.INTERVIEWING.value, 
                                        PipelineStage.DECISION.value, 
-                                       PipelineStage.HIRE_REVIEW.value, 
-                                       PipelineStage.OFFER.value):
+                                       PipelineStage.HIRE_REVIEW.value):
                     if current_stage == PipelineStage.HIRE_REVIEW.value:
-                         self.state = await liaison_node(self.state)
+                         self.state = await self._run_agent("liaison", liaison_node, self.state)
                     else:
-                         self.state = await coordinator_node(self.state)
+                         self.state = await self._run_agent("coordinator", coordinator_node, self.state)
+
+                elif current_stage == PipelineStage.OFFER.value:
+                    self.state = await self._run_agent("offer_generator", _offer_generator_node, self.state)
                 
                 else:
                     logger.warning(f"Unknown stage {current_stage}. Halting.")
@@ -101,6 +119,18 @@ class Orchestrator:
                 self.state.error = str(e)
                 self._save_state()
                 break
+
+    async def _run_agent(self, name: str, node_fn, state: SharedState) -> SharedState:
+        started = time.perf_counter()
+        try:
+            next_state = await node_fn(state)
+            increment(f"agent_{name}_success")
+            record_agent_run(True, (time.perf_counter() - started) * 1000)
+            return next_state
+        except Exception:
+            increment(f"agent_{name}_failure")
+            record_agent_run(False, (time.perf_counter() - started) * 1000)
+            raise
 
     def _is_at_breakpoint(self) -> bool:
         """Check if we are waiting for human approval."""
@@ -231,7 +261,7 @@ async def resume_workflow(
             state.current_stage = PipelineStage.SOURCING.value # Move forward
         elif state.current_stage == PipelineStage.SHORTLIST_REVIEW.value:
             state.shortlist_approval = "approved"
-            state.current_stage = PipelineStage.SCHEDULING.value
+            state.current_stage = PipelineStage.OUTREACH.value
         elif state.current_stage == PipelineStage.HIRE_REVIEW.value:
              state.hire_approval = "approved"
              state.current_stage = PipelineStage.OFFER.value
@@ -307,3 +337,54 @@ def get_all_workflows(db: Session) -> list[dict]:
         "current_stage": j.current_stage,
         "created_at": j.created_at.isoformat(),
     } for j in jobs]
+
+
+def append_candidate_response(
+    db: Session,
+    job_id: str,
+    candidate_id: str,
+    candidate_name: str,
+    response_text: str,
+) -> dict:
+    orchestrator = Orchestrator(db, job_id)
+    orchestrator.state.candidate_responses.append(
+        CandidateResponse(
+            candidate_id=candidate_id,
+            candidate_name=candidate_name,
+            response=response_text,
+            engagement_level="High",
+        )
+    )
+    orchestrator.state.log_audit(
+        "Candidate Response Webhook",
+        "response_captured",
+        f"Captured response from {candidate_name}.",
+        orchestrator.state.current_stage,
+    )
+    orchestrator._save_state()
+    return orchestrator.state.model_dump(mode="json")
+
+
+def run_retention_cleanup(db: Session) -> dict:
+    deleted_completed = 0
+    deleted_overflow = 0
+    if settings.retention_enabled and settings.retention_days_completed_jobs > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.retention_days_completed_jobs)
+        old_completed = (
+            db.query(Job)
+            .filter(Job.current_stage == PipelineStage.COMPLETED.value, Job.completed_at.isnot(None), Job.completed_at < cutoff)
+            .all()
+        )
+        deleted_completed = len(old_completed)
+        for job in old_completed:
+            db.delete(job)
+        db.commit()
+
+    if settings.retention_max_jobs > 0:
+        ordered_jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+        overflow = ordered_jobs[settings.retention_max_jobs :]
+        deleted_overflow = len(overflow)
+        for job in overflow:
+            db.delete(job)
+        db.commit()
+    return {"deleted_completed": deleted_completed, "deleted_overflow": deleted_overflow}

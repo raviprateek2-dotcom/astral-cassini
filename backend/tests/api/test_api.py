@@ -89,6 +89,63 @@ async def test_endpoint_approve_jd(client, db):
     
     app.dependency_overrides.pop(get_current_user)
 
+
+@pytest.mark.asyncio
+async def test_workflow_recommendations_includes_decision_traces(client, db):
+    """GET /api/workflow/{job_id}/recommendations exposes decision_traces from workflow state."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import Job, User
+
+    app.dependency_overrides[get_current_user] = lambda: User(id=1, email="hr@prohr.ai")
+
+    job = Job(
+        job_id="trc-job1",
+        job_title="Trace Test",
+        department="Eng",
+        current_stage="decision",
+        workflow_state={
+            "final_recommendations": [
+                {
+                    "candidate_id": "c-trace",
+                    "candidate_name": "Sam Trace",
+                    "decision": "hire",
+                    "confidence": 81.0,
+                    "screening_weight": 32.0,
+                    "interview_weight": 49.0,
+                    "overall_weighted_score": 81.0,
+                    "reasoning": "Unit test",
+                    "risk_factors": [],
+                }
+            ],
+            "decision_traces": [
+                {
+                    "candidate_id": "c-trace",
+                    "candidate_name": "Sam Trace",
+                    "screening_score": 80.0,
+                    "interview_score_scaled": 81.5,
+                    "concerns_count": 0,
+                    "weighted_score": 81.0,
+                    "decision": "hire",
+                    "rule_applied": "weighted>=75&&concerns<3=>hire",
+                }
+            ],
+        },
+    )
+    db.add(job)
+    db.commit()
+
+    response = client.get("/api/workflow/trc-job1/recommendations")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["job_id"] == "trc-job1"
+    assert len(data["final_recommendations"]) == 1
+    assert len(data["decision_traces"]) == 1
+    assert data["decision_traces"][0]["candidate_id"] == "c-trace"
+    assert data["decision_traces"][0]["rule_applied"]
+
+    app.dependency_overrides.pop(get_current_user)
+
+
 @pytest.mark.asyncio
 async def test_endpoint_not_found(client, db):
     """Ensure API returns 404 for invalid job IDs."""

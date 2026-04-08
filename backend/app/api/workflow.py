@@ -15,6 +15,7 @@ from app.core.orchestrator import (
     reject_stage,
     get_workflow_status,
     resume_workflow,
+    append_candidate_response,
 )
 
 router = APIRouter(prefix="/api/workflow", tags=["Workflow"])
@@ -63,6 +64,12 @@ class PatchStateRequest(BaseModel):
     action: str
     state_updates: dict
 
+
+class CandidateResponseRequest(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    response: str
+
 @router.patch("/{job_id}/state")
 async def patch_state(
     job_id: str,
@@ -82,6 +89,26 @@ async def patch_state(
             state_updates=req.state_updates
         )
         return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{job_id}/responses")
+async def capture_response(
+    job_id: str,
+    req: CandidateResponseRequest,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, RequireHR],
+):
+    """Capture real candidate response payloads from an external communication flow."""
+    try:
+        return append_candidate_response(
+            db=db,
+            job_id=job_id,
+            candidate_id=req.candidate_id,
+            candidate_name=req.candidate_name,
+            response_text=req.response,
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -155,4 +182,5 @@ async def get_recommendations(
     return {
         "job_id": job_id,
         "final_recommendations": state.get("final_recommendations", []),
+        "decision_traces": state.get("decision_traces", []),
     }

@@ -7,14 +7,12 @@ the job description and their specific resume/gap analysis.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from typing import Any
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
-from app.models.state import PipelineStage
+from app.models.state import PipelineStage, SharedState, OutreachEmail
 
 logger = logging.getLogger(__name__)
 
@@ -34,35 +32,24 @@ OUTPUT FORMAT: Return a JSON object with "subject" and "body" keys."""
 def create_outreach_agent():
     """Create the Outreach Agent node function."""
 
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=0.7,
-        api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
-    )
-
-    async def outreach_node(state: dict[str, Any]) -> dict:
+    async def outreach_node(state: SharedState) -> SharedState:
         """Generate personalized emails for shortlisted candidates."""
-        
-        current_stage = state.get("current_stage")
-        if current_stage != PipelineStage.OUTREACH.value:
-            return {}
+        if state.current_stage != PipelineStage.OUTREACH.value:
+            return state
 
-        job_title = state.get("job_title", "")
-        job_description = state.get("job_description", "")
-        # In a real flow, we only outreach to candidates who were 'approved' in the shortlist review.
-        # For simplicity in this graph branch, we'll process the scored_candidates.
-        candidates = state.get("scored_candidates", [])
-        
-        outreach_emails = []
-        audit_logs = []
+        job_title = state.job_title
+        job_description = state.job_description
+        candidates = state.scored_candidates
+
+        outreach_emails: list[OutreachEmail] = []
 
         # Only process top 3 candidates for efficiency in this demo
         for candidate in candidates[:3]:
             user_prompt = f"""Draft a recruitment email for:
-Candidate Name: {candidate.get('candidate_name')}
+Candidate Name: {candidate.candidate_name}
 Job Title: {job_title}
-Key Strengths: {', '.join(candidate.get('strengths', []))}
-Identified Gaps to address later: {', '.join(candidate.get('gaps', []))}
+Key Strengths: {', '.join(candidate.strengths)}
+Identified Gaps to address later: {', '.join(candidate.gaps)}
 
 Context (JD):
 {job_description[:1000]}
@@ -74,6 +61,22 @@ Context (JD):
             ]
 
             try:
+                if not settings.openai_api_key:
+                    outreach_emails.append(
+                        OutreachEmail(
+                            candidate_id=candidate.candidate_id,
+                            candidate_name=candidate.candidate_name,
+                            subject=f"Opportunity at PRO HR: {job_title}",
+                            body=f"Hi {candidate.candidate_name}, we would love to connect about the {job_title} role.",
+                            status="sent",
+                        )
+                    )
+                    continue
+                llm = ChatOpenAI(
+                    model=settings.llm_model,
+                    temperature=0.7,
+                    api_key=SecretStr(settings.openai_api_key),
+                )
                 # Use structured output if possible, but simple JSON parse for now
                 response = await llm.ainvoke(messages)
                 import json
@@ -89,30 +92,28 @@ Context (JD):
                         "body": response.content
                     }
 
-                outreach_emails.append({
-                    "candidate_id": candidate.get("candidate_id"),
-                    "candidate_name": candidate.get("candidate_name"),
-                    "subject": email_data.get("subject"),
-                    "body": email_data.get("body"),
-                    "status": "sent"
-                })
-
-                audit_logs.append({
-                    "timestamp": datetime.now().isoformat(),
-                    "agent": "Outreach Agent",
-                    "action": "outreach_sent",
-                    "details": f"Personalized email sent to {candidate.get('candidate_name')}.",
-                    "stage": PipelineStage.OUTREACH.value,
-                })
+                outreach_emails.append(
+                    OutreachEmail(
+                        candidate_id=candidate.candidate_id,
+                        candidate_name=candidate.candidate_name,
+                        subject=str(email_data.get("subject", "")),
+                        body=str(email_data.get("body", "")),
+                        status="sent",
+                    )
+                )
+                state.log_audit(
+                    "Outreach Agent",
+                    "outreach_sent",
+                    f"Personalized email sent to {candidate.candidate_name}.",
+                    PipelineStage.OUTREACH.value,
+                )
 
             except Exception as e:
-                logger.error(f"Outreach failed for {candidate.get('candidate_name')}: {e}")
+                logger.error(f"Outreach failed for {candidate.candidate_name}: {e}")
                 continue
 
-        return {
-            "outreach_emails": outreach_emails,
-            "audit_log": audit_logs,
-            "current_stage": PipelineStage.ENGAGEMENT.value
-        }
+        state.outreach_emails = outreach_emails
+        state.current_stage = PipelineStage.ENGAGEMENT.value
+        return state
 
     return outreach_node

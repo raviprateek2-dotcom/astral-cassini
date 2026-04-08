@@ -71,6 +71,7 @@ export default function InterviewsPage() {
                                 <th>Scheduled</th>
                                 <th>Duration</th>
                                 <th>Interviewers</th>
+                                <th>Meeting</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -96,6 +97,15 @@ export default function InterviewsPage() {
                                             ? int.interviewers
                                             : []
                                         ).join(", ")}
+                                    </td>
+                                    <td style={{ fontSize: "0.8rem" }}>
+                                        {typeof int.meeting_link === "string" && int.meeting_link ? (
+                                            <a href={int.meeting_link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-cyan)" }}>
+                                                Join
+                                            </a>
+                                        ) : (
+                                            "—"
+                                        )}
                                     </td>
                                     <td><span className="badge badge-emerald">{int.status}</span></td>
                                 </tr>

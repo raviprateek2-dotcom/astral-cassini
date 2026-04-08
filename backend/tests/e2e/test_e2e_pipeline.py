@@ -11,16 +11,12 @@ from app.core.orchestrator import start_workflow, resume_workflow, Orchestrator
 from app.models.db_models import Job
 
 @pytest.mark.asyncio
-async def test_e2e_successful_hiring_cycle(db):
-    """
-    Simulate a full recruitment lifecycle from intake to offer.
-    Validates:
-    - Initializing the requisition.
-    - JD Drafting -> Review -> Approval.
-    - Scouting -> Screening -> Shortlist Review.
-    - Scheduling -> Interviewing -> Final Decision -> Offer.
-    """
-    
+async def test_e2e_successful_hiring_cycle(db, monkeypatch):
+    """Full recruitment lifecycle. Clears OpenAI key so conftest's ``test-key`` does not call the API."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openai_api_key", "")
+
     # 1. INTAKE
     result = await start_workflow(
         db, 1, "Principal Researcher", "AI Labs", 

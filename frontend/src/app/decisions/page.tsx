@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import type { JobListItem, RecommendationRow } from "@/types/domain";
+import type { DecisionTraceRow, JobListItem, RecommendationRow } from "@/types/domain";
 
 export default function DecisionsPage() {
     const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
     const [recs, setRecs] = useState<RecommendationRow[]>([]);
+    const [traces, setTraces] = useState<DecisionTraceRow[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -20,7 +21,11 @@ export default function DecisionsPage() {
         try {
             const data = await api.getRecommendations(jobId);
             setRecs(data.final_recommendations || []);
-        } catch { setRecs([]); }
+            setTraces(data.decision_traces || []);
+        } catch {
+            setRecs([]);
+            setTraces([]);
+        }
         setLoading(false);
     }
 
@@ -52,6 +57,7 @@ export default function DecisionsPage() {
                         const riskFactors = Array.isArray(r.risk_factors)
                             ? r.risk_factors.filter((rf): rf is string => typeof rf === "string")
                             : [];
+                        const trace = traces.find((t) => String(t.candidate_id ?? "") === String(r.candidate_id ?? ""));
                         return (
                         <div key={i} className="glass-card fade-in" style={{ padding: 28 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -120,6 +126,20 @@ export default function DecisionsPage() {
                                             <span key={j} className="badge badge-amber">{rf}</span>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+
+                            {trace && (
+                                <div style={{ marginTop: 16, padding: 12, borderRadius: 10, border: "1px solid var(--border-glass)", background: "rgba(59,130,246,0.05)" }}>
+                                    <h3 style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--accent-blue)", margin: "0 0 8px" }}>
+                                        🧾 Decision Trace
+                                    </h3>
+                                    <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", margin: "0 0 6px" }}>
+                                        Rule: {String(trace.rule_applied ?? "n/a")}
+                                    </p>
+                                    <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", margin: 0 }}>
+                                        Screening={Number(trace.screening_score ?? 0)} | Interview={Number(trace.interview_score_scaled ?? 0)} | Concerns={Number(trace.concerns_count ?? 0)} | Weighted={Number(trace.weighted_score ?? 0)}
+                                    </p>
                                 </div>
                             )}
                         </div>

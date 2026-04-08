@@ -2,9 +2,9 @@
 
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { api } from "@/lib/api";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AgentThinking } from "@/components/AgentThinking";
-import type { AuditLogEntry } from "@/types/domain";
+import type { AuditLogEntry, DecisionTraceRow } from "@/types/domain";
 
 interface JobDetails {
     job_title: string;
@@ -18,29 +18,68 @@ interface StructuredDetails {
     candidate_pool_health?: string;
 }
 
+interface DecisionTrace {
+    candidate_id: string;
+    candidate_name: string;
+    screening_score: number;
+    interview_score_scaled: number;
+    concerns_count: number;
+    weighted_score: number;
+    decision: string;
+    rule_applied: string;
+}
+
 function InsightsContent() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const jobId = searchParams.get("id");
     const [audit, setAudit] = useState<AuditLogEntry[]>([]);
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+    const [decisionTraces, setDecisionTraces] = useState<DecisionTrace[]>([]);
+    const [observability, setObservability] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
 
     const loadData = useCallback(async () => {
-        if (!jobId) return;
+        if (!jobId) {
+            try {
+                const jobs = await api.listJobs();
+                if (jobs.length > 0) {
+                    router.replace(`/insights?id=${jobs[0].job_id}`);
+                }
+            } catch (err) {
+                console.error("Failed to resolve default job for insights", err);
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
         setLoading(true);
         try {
-            const [auditData, jobData] = await Promise.all([
+            const [auditData, jobData, recommendationsData, healthData] = await Promise.all([
                 api.getAudit(jobId),
-                api.getJob(jobId)
+                api.getJob(jobId),
+                api.getRecommendations(jobId),
+                api.health(),
             ]);
             setAudit(auditData.audit_log ?? []);
             setJobDetails(jobData);
+            setDecisionTraces((recommendationsData.decision_traces ?? []).map((trace: DecisionTraceRow) => ({
+                candidate_id: String(trace.candidate_id ?? ""),
+                candidate_name: String(trace.candidate_name ?? "Unknown"),
+                screening_score: Number(trace.screening_score ?? 0),
+                interview_score_scaled: Number(trace.interview_score_scaled ?? 0),
+                concerns_count: Number(trace.concerns_count ?? 0),
+                weighted_score: Number(trace.weighted_score ?? 0),
+                decision: String(trace.decision ?? "no_hire"),
+                rule_applied: String(trace.rule_applied ?? ""),
+            })));
+            setObservability(healthData.observability ?? {});
         } catch (err) {
             console.error("Failed to load insights", err);
         } finally {
             setLoading(false);
         }
-    }, [jobId]);
+    }, [jobId, router]);
 
     useEffect(() => {
         loadData();
@@ -71,6 +110,14 @@ function InsightsContent() {
             {loading ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
                     <AgentThinking message="Reconstructing Agent Monologues..." />
+                </div>
+            ) : audit.length === 0 ? (
+                <div className="glass-card" style={{ padding: 40, textAlign: "center" }}>
+                    <p style={{ fontSize: "2rem", marginBottom: 8 }}>🧠</p>
+                    <h3 style={{ margin: 0 }}>No insights yet for this job</h3>
+                    <p style={{ color: "var(--text-muted)", marginTop: 8 }}>
+                        Progress the pipeline through at least one stage to populate audit reasoning entries.
+                    </p>
                 </div>
             ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32 }}>
@@ -168,10 +215,74 @@ function InsightsContent() {
                                     The Scout uses **Feedback-Driven Augmentation**. If you reject a candidate, the agent automatically updates the vector query with negative constraints to prune similar profiles.
                                 </p>
                             </div>
+
+                            <div style={{ marginTop: 24, padding: 16, background: "rgba(59,130,246,0.06)", borderRadius: 12, border: "1px solid rgba(59,130,246,0.2)" }}>
+                                <h4 style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 10 }}>📈 Agent Reliability (SLI)</h4>
+                                <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 0 }}>
+                                    Live in-memory counters from backend observability.
+                                </p>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                    <Metric label="Runs Success" value={observability.agent_runs_success ?? 0} />
+                                    <Metric label="Runs Failed" value={observability.agent_runs_failed ?? 0} />
+                                    <Metric label="Avg Duration (ms)" value={avgDuration(observability)} />
+                                    <Metric label="Total WS Connect OK" value={observability.ws_connect_success ?? 0} />
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 24 }}>
+                                <h4 style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 10 }}>🧾 Decision Transparency</h4>
+                                {decisionTraces.length === 0 ? (
+                                    <p style={{ fontSize: "0.74rem", color: "var(--text-muted)", margin: 0 }}>
+                                        No decision traces yet. Complete screening and decision stages.
+                                    </p>
+                                ) : (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                        {decisionTraces.slice(0, 5).map((trace) => (
+                                            <div
+                                                key={trace.candidate_id}
+                                                style={{
+                                                    border: "1px solid rgba(255,255,255,0.08)",
+                                                    borderRadius: 10,
+                                                    padding: 10,
+                                                    background: "rgba(255,255,255,0.02)",
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                                    <strong style={{ fontSize: "0.76rem" }}>{trace.candidate_name}</strong>
+                                                    <span className="badge badge-blue" style={{ fontSize: "0.62rem" }}>
+                                                        {trace.decision.toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <p style={{ fontSize: "0.68rem", color: "var(--text-muted)", margin: "6px 0 0" }}>
+                                                    Score={trace.weighted_score} | Screen={trace.screening_score} | Interview={trace.interview_score_scaled} | Concerns={trace.concerns_count}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function avgDuration(metrics: Record<string, number>): string {
+    const sum = metrics.agent_duration_ms_sum ?? 0;
+    const count = metrics.agent_duration_ms_count ?? 0;
+    if (!count) {
+        return "0";
+    }
+    return (sum / count).toFixed(1);
+}
+
+function Metric({ label, value }: { label: string; value: number | string }) {
+    return (
+        <div style={{ padding: 8, borderRadius: 8, background: "rgba(0,0,0,0.2)" }}>
+            <p style={{ fontSize: "0.64rem", color: "var(--text-muted)", margin: "0 0 4px" }}>{label}</p>
+            <p style={{ fontSize: "0.82rem", fontWeight: 700, margin: 0 }}>{value}</p>
         </div>
     );
 }

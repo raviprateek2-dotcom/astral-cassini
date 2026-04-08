@@ -22,7 +22,10 @@ __pycache__/
 backend/.venv/
 backend/venv/
 backend/.pytest_cache/
+backend/.env
 backend/*.db
+backend/data/*.db
+backend/data/e2e.db
 backend/*.log
 
 # Frontend
@@ -31,3 +34,4 @@ frontend/.next/
 frontend/dist/
 frontend/build/
 frontend/out/
+frontend/e2e/.auth/user.json

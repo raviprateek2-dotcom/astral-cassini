@@ -63,6 +63,7 @@ export type InterviewRow = Record<string, unknown> & {
     duration_minutes?: number;
     interviewers?: string[];
     status?: string;
+    meeting_link?: string;
 };
 
 export type AssessmentRow = Record<string, unknown> & {
@@ -83,4 +84,16 @@ export type RecommendationRow = Record<string, unknown> & {
 
 export type RecommendationsApiResponse = {
     final_recommendations?: RecommendationRow[];
+    decision_traces?: DecisionTraceRow[];
+};
+
+export type DecisionTraceRow = Record<string, unknown> & {
+    candidate_id?: string;
+    candidate_name?: string;
+    screening_score?: number;
+    interview_score_scaled?: number;
+    concerns_count?: number;
+    weighted_score?: number;
+    decision?: string;
+    rule_applied?: string;
 };

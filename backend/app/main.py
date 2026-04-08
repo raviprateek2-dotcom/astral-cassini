@@ -15,8 +15,9 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api import jobs, candidates, workflow, websocket, auth, analytics
-from app.core.database import init_db
+from app.core.database import init_db, SessionLocal
 from app.core.observability import snapshot as observability_snapshot
+from app.core.orchestrator import run_retention_cleanup
 
 # Configure logging
 logging.basicConfig(
@@ -67,7 +68,7 @@ async def lifespan(app: FastAPI):
     seed_demo_users = os.getenv("SEED_DEMO_USERS", "false").lower() == "true"
     is_dev = settings.app_env.lower() in {"development", "dev", "local"}
     if seed_demo_users and is_dev:
-        from app.core.database import SessionLocal
+        from app.core.database import SessionLocal as LocalSession
         from app.models.db_models import User
         from app.core.auth import hash_password
         demo_admin_password = os.getenv("DEMO_ADMIN_PASSWORD", "")
@@ -77,7 +78,7 @@ async def lifespan(app: FastAPI):
                 "SEED_DEMO_USERS=true requires DEMO_ADMIN_PASSWORD and DEMO_HR_PASSWORD (8+ chars)."
             )
 
-        db = SessionLocal()
+        db = LocalSession()
         try:
             if not db.query(User).filter(User.email == "admin@prohr.ai").first():
                 db.add(User(
@@ -105,6 +106,24 @@ async def lifespan(app: FastAPI):
         google_calendar_ready,
         settings.google_calendar_id if settings.calendar_provider == "google" else "n/a",
     )
+    logger.info(
+        "Email provider configured: provider=%s smtp_host_set=%s from=%s",
+        settings.email_provider,
+        bool(settings.smtp_host),
+        settings.smtp_from_email,
+    )
+    db = SessionLocal()
+    try:
+        retention_result = run_retention_cleanup(db)
+        logger.info(
+            "Retention cleanup completed: deleted_completed=%s deleted_overflow=%s",
+            retention_result["deleted_completed"],
+            retention_result["deleted_overflow"],
+        )
+    except Exception:
+        logger.exception("Retention cleanup skipped due to startup DB access issue.")
+    finally:
+        db.close()
         
     yield
 
@@ -198,6 +217,21 @@ async def health():
         "indexed_resumes": get_collection_count(),
         "openai_configured": bool(settings.openai_api_key),
         "observability": observability_snapshot(),
+        "calendar_provider_status": {
+            "provider": settings.calendar_provider,
+            "google_credentials_path_set": bool(settings.google_service_account_json),
+            "calendar_id": settings.google_calendar_id if settings.calendar_provider == "google" else "n/a",
+        },
+        "email_provider_status": {
+            "provider": settings.email_provider,
+            "smtp_host_set": bool(settings.smtp_host),
+            "smtp_from": settings.smtp_from_email,
+        },
+        "retention_policy": {
+            "enabled": settings.retention_enabled,
+            "days_completed_jobs": settings.retention_days_completed_jobs,
+            "max_jobs": settings.retention_max_jobs,
+        },
     }
 
 

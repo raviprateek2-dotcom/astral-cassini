@@ -32,6 +32,7 @@ type Agent = {
 type HealthStatus = {
   llm_model?: string;
   indexed_resumes?: number;
+  observability?: Record<string, number>;
 } | null;
 
 export function DashboardShell({ children }: { children: ReactNode }) {
@@ -227,6 +228,11 @@ export function ActivePipelines({
 }
 
 export function Sidebar({ agents, health }: { agents: Agent[]; health: HealthStatus }) {
+  const metrics = health?.observability ?? {};
+  const durationSum = metrics.agent_duration_ms_sum ?? 0;
+  const durationCount = metrics.agent_duration_ms_count ?? 0;
+  const avgDuration = durationCount > 0 ? (durationSum / durationCount).toFixed(1) : "0.0";
+
   return (
     <div>
       <div className="glass-card stagger-5" style={{ padding: 24, marginBottom: 24 }}>
@@ -269,6 +275,27 @@ export function Sidebar({ agents, health }: { agents: Agent[]; health: HealthSta
           </div>
         )}
       </div>
+
+      <div className="glass-card" style={{ padding: "20px", marginTop: 24, background: "rgba(59, 130, 246, 0.06)" }}>
+        <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 12px" }}>
+          Agent Reliability (SLI)
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <MiniMetric label="Success" value={metrics.agent_runs_success ?? 0} />
+          <MiniMetric label="Failed" value={metrics.agent_runs_failed ?? 0} />
+          <MiniMetric label="Avg ms" value={avgDuration} />
+          <MiniMetric label="WS OK" value={metrics.ws_connect_success ?? 0} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div style={{ border: "1px solid var(--border-glass)", borderRadius: 8, padding: "8px 10px", background: "rgba(255,255,255,0.02)" }}>
+      <p style={{ fontSize: "0.65rem", color: "var(--text-muted)", margin: 0 }}>{label}</p>
+      <p style={{ fontSize: "0.9rem", fontWeight: 700, margin: "4px 0 0" }}>{value}</p>
     </div>
   );
 }

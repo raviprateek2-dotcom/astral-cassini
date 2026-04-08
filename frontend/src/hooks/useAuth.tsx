@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 localStorage.removeItem("user");
                 if (pathname !== "/login" && pathname !== "/") {
-                    router.push("/login");
+                    router.push("/");
                 }
             } finally {
                 setLoading(false);
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("user");
         sessionStorage.removeItem("ws_token");
         setUser(null);
-        router.push("/login");
+        router.replace("/");
     };
 
     return (
