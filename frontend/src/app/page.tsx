@@ -145,8 +145,7 @@ export default function LandingPage() {
                         maxWidth: "700px",
                         marginInline: "auto"
                     }}>
-                        PRO HR runs a five-agent pipeline under a deterministic orchestrator—
-                        from semantic sourcing through human gates to interviews and offers.
+                        PRO HR runs a five-agent pipeline under a deterministic orchestrator from semantic sourcing through human gates to interviews and offers.
                     </p>
 
                     <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
