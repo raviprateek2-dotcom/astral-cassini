@@ -1,14 +1,50 @@
-﻿# PRO HR â€” Autonomous Multi-Agent Recruitment Ecosystem
+﻿# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
 
 A multi-agent recruitment platform with a **deterministic Python orchestrator** (LangChain / OpenAI for LLM steps), **human-in-the-loop gates**, and **FAISS-backed RAG** for resume search.
 
-## ðŸ—ï¸ Architecture
+## What this is (plain English)
+
+PRO HR is a hiring assistant platform for teams that want to move faster without losing control.
+It helps you:
+
+- Create clearer job descriptions
+- Search and score resumes with AI
+- Keep humans in charge at important approval steps
+- Track every decision in an audit trail
+
+If you are non-technical, think of this as a "smart hiring workflow" that combines automation + human approval.
+
+## How it works in 4 simple steps
+
+1. A recruiter creates a new job opening.
+2. The system drafts/refines the job description and finds matching resumes.
+3. Candidates are scored with clear reasons and gaps.
+4. Humans approve key checkpoints before final hiring decisions.
+
+## Quick demo (2 minutes)
+
+1. Start backend and frontend using the **Quick Start** section below.
+2. Open `http://localhost:3000`.
+3. Create one job in **Jobs**.
+4. Upload resumes for that job.
+5. Visit **Approvals** and move the pipeline through approvals.
+6. Check **Audit Trail** to see a timeline of all actions and decisions.
+
+Expected result: you should see a full hiring pipeline from job creation to final decision, with human approval gates in between.
+
+## Start here based on your role
+
+- **Recruiter / Product demo**: Read `Quick demo`, then `Dashboard Pages`
+- **Developer**: Read `Quick Start`, `Environment variables`, and `Architecture`
+- **Maintainer / Release owner**: Read `Release Process` and `Project Closeout`
+
+## Architecture
 
 ```
-Frontend (Next.js 16)  â†’  FastAPI Backend  â†’  Orchestrator (state machine)
-                                                    â†“
+Frontend (Next.js 16)  ->  FastAPI Backend  ->  Orchestrator (state machine)
+                                                    |
                                             5 pipeline agents (see below)
-                                                    â†“
+                                                    |
                                     FAISS vector index (LangChain) + SQLite/Postgres
 ```
 
@@ -16,7 +52,7 @@ The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator
 
 **Deeper technical map:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-**Roadmap:** [docs/HIGH_VALUE_ROADMAP.md](docs/HIGH_VALUE_ROADMAP.md) (Phases **Aâ€“C** done). **Changes:** [CHANGELOG.md](CHANGELOG.md).
+**Roadmap:** [docs/HIGH_VALUE_ROADMAP.md](docs/HIGH_VALUE_ROADMAP.md) (Phases **A-C** done). **Changes:** [CHANGELOG.md](CHANGELOG.md).
 
 ### Pipeline agents (wired in the orchestrator)
 
@@ -30,7 +66,7 @@ The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator
 
 Additional modules (`outreach`, `response_tracker`, standalone `offer_generator`) exist in the repo but are **not** part of the default orchestration path above.
 
-## ðŸš€ Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -50,7 +86,7 @@ uvicorn app.main:app --reload
 
 Optional LangGraph experiments: `pip install -r requirements-dev.txt` (not required for the API or CI).
 
-Quick tests (from `backend/`, set `SECRET_KEY` as in CI): `pytest -m "unit or api" -q` for a fast slice; **`pytest tests -q`** matches the backend CI job. CI also runs an **informational** full-app `mypy` report (`mypy-full.ini`) that does not fail the pipeline â€” use it to track typing debt.
+Quick tests (from `backend/`, set `SECRET_KEY` as in CI): `pytest -m "unit or api" -q` for a fast slice; **`pytest tests -q`** matches the backend CI job. CI also runs an **informational** full-app `mypy` report (`mypy-full.ini`) that does not fail the pipeline - use it to track typing debt.
 
 Backend runs at **<http://localhost:8000>** (API docs: `/docs`)
 
@@ -122,25 +158,25 @@ docker compose -f docker-compose.yml -f docker-compose.direct-api.yml up --build
 
 Details, env inventory, and production patterns: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#environment--deployment-inventory-phase-a).
 
-## ðŸ“± Dashboard Pages
+## Dashboard Pages
 
-- **Dashboard** â€” Overview metrics, active pipelines, agent roster
-- **Jobs** â€” Create job requisitions, view generated JDs
-- **Candidates** â€” Scored candidate cards with gap analysis
-- **Approvals** â€” HITL gates for JD, shortlist, and hire decisions
-- **Interviews** â€” Scheduled interviews and competency assessments
-- **Decisions** â€” Final hire/no-hire with explainable reasoning
-- **Audit Trail** â€” Timeline of all agent actions and decisions
+- **Dashboard** - Overview metrics, active pipelines, agent roster
+- **Jobs** - Create job requisitions, view generated JDs
+- **Candidates** - Scored candidate cards with gap analysis
+- **Approvals** - HITL gates for JD, shortlist, and hire decisions
+- **Interviews** - Scheduled interviews and competency assessments
+- **Decisions** - Final hire/no-hire with explainable reasoning
+- **Audit Trail** - Timeline of all agent actions and decisions
 
-## ðŸ”‘ Key Features
+## Key Features
 
-- **Bias Mitigation** â€” Guardrails in agent prompts and audit emphasis
-- **Explainable Scoring** â€” Structured match reasoning and competency gaps
-- **HITL Gates** â€” Three human approval checkpoints in the pipeline
-- **RAG Search** â€” FAISS + embeddings for semantic resume retrieval (see `backend/app/rag/embeddings.py`)
-- **Audit Trail** â€” Decision history with agent attribution
+- **Bias Mitigation** - Guardrails in agent prompts and audit emphasis
+- **Explainable Scoring** - Structured match reasoning and competency gaps
+- **HITL Gates** - Three human approval checkpoints in the pipeline
+- **RAG Search** - FAISS + embeddings for semantic resume retrieval (see `backend/app/rag/embeddings.py`)
+- **Audit Trail** - Decision history with agent attribution
 
-## ðŸ› ï¸ Tech Stack
+## Tech Stack
 
 - **Orchestration**: Custom Python orchestrator (`app/core/orchestrator.py`) with staged pipeline
 - **LLM**: OpenAI (default model from settings, e.g. `gpt-4o`)
@@ -150,7 +186,7 @@ Details, env inventory, and production patterns: [docs/ARCHITECTURE.md](docs/ARC
 - **Real-time**: WebSocket for live pipeline updates
 
 
-## ðŸš¢ Release Process
+## Release Process
 
 Before tagging/deploying, run the checklist in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
