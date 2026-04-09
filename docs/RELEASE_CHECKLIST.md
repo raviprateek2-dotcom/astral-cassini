@@ -23,6 +23,7 @@ Use this before tagging or deploying a release.
 ## 4) Data and migration safety
 
 - [ ] Any schema/config changes include backward-compatible behavior or clear migration notes.
+- [ ] Alembic migrations are present and `alembic upgrade head` succeeds in CI/local verification.
 - [ ] `backend/.env.example` and docs updated for new runtime config.
 
 ## 5) Release metadata and rollback
@@ -31,3 +32,4 @@ Use this before tagging or deploying a release.
 - [ ] Version/tag selected (semantic tag, e.g. `v0.4.0`).
 - [ ] Release notes include user impact + rollback instructions.
 - [ ] Last known good image/commit noted for rollback.
+- [ ] Incident rollback and triage path reviewed in `docs/INCIDENT_RESPONSE_RUNBOOK.md`.

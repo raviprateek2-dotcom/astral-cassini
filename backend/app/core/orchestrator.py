@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 _outreach_node = create_outreach_agent()
 _response_tracker_node = create_response_tracker()
 _offer_generator_node = create_offer_generator()
+_running_jobs: set[str] = set()
 
 REQUIRED_JD_SECTIONS = [
     "Role Summary",
@@ -248,15 +249,28 @@ async def start_workflow(
 
 
 def start_orchestration(job_id: str):
-    """Launch the orchestration logic in a background task."""
+    """Launch orchestration in background unless already running for this job."""
+    if job_id in _running_jobs:
+        logger.info("orchestration already running for job_id=%s, skipping duplicate trigger", job_id)
+        return False
+    _running_jobs.add(job_id)
     asyncio.create_task(_run_orchestration_task(job_id))
+    return True
 
 
 async def _run_orchestration_task(job_id: str):
     from app.core.database import SessionLocal
     with SessionLocal() as db:
-        orchestrator = Orchestrator(db, job_id)
-        await orchestrator.execute()
+        try:
+            _record_run_metadata(db, job_id, status="running")
+            orchestrator = Orchestrator(db, job_id)
+            await orchestrator.execute()
+            _record_run_metadata(db, job_id, status="completed")
+        except Exception as exc:
+            logger.error("orchestration task failed for job_id=%s", job_id, exc_info=True)
+            _record_run_metadata(db, job_id, status="failed", last_error=str(exc))
+        finally:
+            _running_jobs.discard(job_id)
 
 
 async def resume_workflow(
@@ -273,6 +287,13 @@ async def resume_workflow(
     if state_updates:
         for k, v in state_updates.items():
             setattr(state, k, v)
+    if action == "manual_patch":
+        state.log_audit(
+            "Manual Override",
+            "state_patch",
+            f"Manual patch applied by user_id={user_id}. {state.human_feedback}".strip(),
+            state.current_stage,
+        )
             
     if action == "approve":
         if state.current_stage == PipelineStage.JD_REVIEW.value:
@@ -416,3 +437,24 @@ def run_retention_cleanup(db: Session) -> dict:
             db.delete(job)
         db.commit()
     return {"deleted_completed": deleted_completed, "deleted_overflow": deleted_overflow}
+
+
+def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str | None = None) -> None:
+    """Store lightweight orchestrator run metadata in workflow_state."""
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    if not job:
+        return
+    state = dict(job.workflow_state or {})
+    run_state = dict(state.get("_orchestrator", {}))
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if status == "running":
+        run_state["started_at"] = now_iso
+    run_state["status"] = status
+    run_state["updated_at"] = now_iso
+    if status in {"completed", "failed"}:
+        run_state["finished_at"] = now_iso
+    if last_error:
+        run_state["last_error"] = last_error
+    state["_orchestrator"] = run_state
+    job.workflow_state = state
+    db.commit()

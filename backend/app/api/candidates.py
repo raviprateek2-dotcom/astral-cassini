@@ -10,11 +10,12 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Respons
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.auth import RequireHR
+from app.core.auth import RequireHR, require_job_access
 from app.core.orchestrator import get_workflow_status
 from app.models.db_models import User
 from app.rag.parser import parse_resume_pdf, parse_resume_text
 from app.rag.embeddings import index_resume, get_collection_count
+from app.config import settings
 
 router = APIRouter(prefix="/api", tags=["Candidates"])
 
@@ -25,9 +26,10 @@ UPLOAD_DIR = Path("data/uploads")
 async def get_candidates(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, RequireHR],
+    current_user: Annotated[User, RequireHR],
 ):
     """Get matched candidates for a job."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -67,11 +69,18 @@ async def upload_resume(
     file_path = UPLOAD_DIR / f"{file_id}{file_ext}"
 
     content = await file.read()
+    if len(content) > settings.resume_upload_max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max size is {settings.resume_upload_max_bytes} bytes",
+        )
     with open(file_path, "wb") as f:
         f.write(content)
 
     # Parse and index
     if file_ext.lower() == ".pdf":
+        if not content.startswith(b"%PDF"):
+            raise HTTPException(status_code=400, detail="Invalid PDF file signature")
         parsed = parse_resume_pdf(str(file_path))
     else:
         text_content = content.decode("utf-8", errors="ignore")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import secrets
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -27,6 +28,8 @@ from app.models.db_models import Job, User
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 COOKIE_NAME = "access_token"
+CSRF_COOKIE_NAME = "csrf_token"
+CSRF_HEADER_NAME = "x-csrf-token"
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -39,6 +42,15 @@ def _set_session_cookie(response: Response, token: str) -> None:
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=secrets.token_urlsafe(24),
+        httponly=False,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
 
 
 def _clear_session_cookie(response: Response) -> None:
@@ -46,6 +58,13 @@ def _clear_session_cookie(response: Response) -> None:
         key=COOKIE_NAME,
         path="/",
         httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+    )
+    response.delete_cookie(
+        key=CSRF_COOKIE_NAME,
+        path="/",
+        httponly=False,
         secure=settings.auth_cookie_secure,
         samesite=settings.auth_cookie_samesite,
     )

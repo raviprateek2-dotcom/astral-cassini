@@ -25,6 +25,8 @@ logging.basicConfig(
     format="%(asctime)s | %(name)-25s | %(levelname)-7s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+CSRF_COOKIE_NAME = "csrf_token"
+CSRF_HEADER_NAME = "x-csrf-token"
 
 
 def _cors_allow_origins() -> list[str]:
@@ -145,6 +147,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def csrf_protect(request: Request, call_next):
+    """Double-submit CSRF check for cookie-authenticated mutation API requests."""
+    method = request.method.upper()
+    path = request.url.path
+    is_mutation = method in {"POST", "PUT", "PATCH", "DELETE"}
+    exempt_paths = {
+        "/api/auth/login",
+        "/api/auth/register",
+    }
+    if is_mutation and path.startswith("/api/") and path not in exempt_paths:
+        has_cookie_session = bool(request.cookies.get("access_token"))
+        has_bearer = bool(request.headers.get("authorization"))
+        if has_cookie_session and not has_bearer:
+            csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
+            csrf_header = request.headers.get(CSRF_HEADER_NAME)
+            if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+                return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
+    return await call_next(request)
 
 
 @app.middleware("http")

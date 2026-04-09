@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '@/lib/api';
+import { fetchWithCache, invalidateCache } from "@/lib/dataCache";
 import { toast } from 'sonner';
 import type { AuditLogEntry, JobDetail, JobListItem, WorkflowBlob } from "@/types/domain";
 
@@ -47,7 +48,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
     fetchJobsList: async () => {
         set({ loading: true, error: null });
         try {
-            const jobs = await api.listJobs();
+            const jobs = await fetchWithCache("jobs:list", () => api.listJobs(), { ttlMs: 10_000 });
             set({
                 jobsList: jobs.map((j) => ({ ...j, state: {} as WorkflowBlob })),
                 loading: false,
@@ -61,7 +62,7 @@ export const useJobStore = create<JobStore>((set, get) => ({
     fetchJobDetails: async (jobId: string) => {
         set({ loading: true, error: null });
         try {
-            const jobDetails = await api.getJob(jobId);
+            const jobDetails = await fetchWithCache(`jobs:${jobId}`, () => api.getJob(jobId), { ttlMs: 5_000 });
             set({ currentJob: normalizeJob(jobDetails), loading: false });
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Failed to load job details.";
@@ -95,6 +96,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
         set({ loading: true });
         try {
             await api.approveStage(jobId, feedback, updatedJd);
+            invalidateCache(`jobs:${jobId}`);
+            invalidateCache("jobs:list");
             toast.success("Stage approved! Advancing workflow.");
             await get().fetchJobDetails(jobId);
         } catch (err: unknown) {
@@ -111,6 +114,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
         set({ loading: true });
         try {
             await api.rejectStage(jobId, feedback);
+            invalidateCache(`jobs:${jobId}`);
+            invalidateCache("jobs:list");
             toast.success("Feedback submitted. Re-running stage.");
             await get().fetchJobDetails(jobId);
         } catch (err: unknown) {
@@ -127,6 +132,8 @@ export const useJobStore = create<JobStore>((set, get) => ({
         set({ loading: true });
         try {
             await api.patchState(jobId, action, stateUpdates);
+            invalidateCache(`jobs:${jobId}`);
+            invalidateCache("jobs:list");
             toast.success(`Action '${action}' executed successfully.`);
             await get().fetchJobDetails(jobId);
         } catch (err: unknown) {

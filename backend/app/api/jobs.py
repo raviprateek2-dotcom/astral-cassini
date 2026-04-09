@@ -11,14 +11,15 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.auth import get_current_user, RequireHR
-from app.models.db_models import User
+from app.core.auth import get_current_user, RequireHR, require_job_access
+from app.models.db_models import User, Job
 from app.core.orchestrator import (
     start_workflow,
     get_workflow_status,
     get_all_workflows,
     resume_workflow,
 )
+from app.config import settings
 from app.rag.parser import parse_resume_pdf
 from app.rag.embeddings import index_resume
 
@@ -69,19 +70,27 @@ async def create_job(
 @router.get("")
 async def list_jobs(
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """List all active recruitment workflows."""
-    return get_all_workflows(db)
+    workflows = get_all_workflows(db)
+    if str(current_user.role) == "admin":
+        return workflows
+    owned_job_ids = {
+        row[0]
+        for row in db.query(Job.job_id).filter(Job.created_by_id == current_user.id).all()
+    }
+    return [w for w in workflows if w.get("job_id") in owned_job_ids]
 
 
 @router.get("/{job_id}")
 async def get_job(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get detailed status of a recruitment workflow."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -92,14 +101,10 @@ async def get_job(
 async def delete_job(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, RequireHR],
+    current_user: Annotated[User, RequireHR],
 ):
     """Delete a pipeline and all related records (HR/admin only)."""
-    from app.models.db_models import Job
-
-    job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    job = require_job_access(db, current_user, job_id)
 
     db.delete(job)
     db.commit()
@@ -122,6 +127,7 @@ async def upload_resume(
     Deprecated utility ``POST /api/resumes/upload`` (see ``candidates.py``) remains for
     job-agnostic indexing only when you intentionally skip job context.
     """
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -133,13 +139,24 @@ async def upload_resume(
     filename = file.filename or ""
     if not filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    if file.content_type not in {"application/pdf", "application/octet-stream"}:
+        raise HTTPException(status_code=400, detail="Invalid content type for PDF upload")
         
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         try:
             content = await file.read()
+            if len(content) > settings.resume_upload_max_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Max size is {settings.resume_upload_max_bytes} bytes",
+                )
+            if not content.startswith(b"%PDF"):
+                raise HTTPException(status_code=400, detail="Invalid PDF file signature")
             tmp.write(content)
             tmp_path = tmp.name
         except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
             raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
 
     # 2. Parse and index

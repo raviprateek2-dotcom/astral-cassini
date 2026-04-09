@@ -30,6 +30,27 @@ type DataClient = Omit<typeof apiClient, "get" | "post" | "patch"> & {
 
 const dataClient = apiClient as unknown as DataClient;
 
+function getCookie(name: string): string {
+    if (typeof document === "undefined") return "";
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length < 2) return "";
+    return decodeURIComponent(parts.pop()?.split(";").shift() || "");
+}
+
+apiClient.interceptors.request.use((config) => {
+    const method = (config.method || "get").toLowerCase();
+    const isMutation = ["post", "put", "patch", "delete"].includes(method);
+    if (isMutation) {
+        const csrf = getCookie("csrf_token");
+        if (csrf) {
+            config.headers = config.headers ?? {};
+            config.headers["x-csrf-token"] = csrf;
+        }
+    }
+    return config;
+});
+
 // Response interceptor to handle unauth
 apiClient.interceptors.response.use(
     (response) => response.data,

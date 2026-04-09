@@ -95,6 +95,13 @@ class Settings(BaseSettings):
     retention_days_completed_jobs: int = 30
     retention_max_jobs: int = 500
 
+    # Upload safety
+    resume_upload_max_bytes: int = Field(
+        default=5_242_880,  # 5 MB
+        ge=1,
+        description="Maximum accepted resume upload size in bytes.",
+    )
+
     @model_validator(mode="after")
     def cookie_none_requires_secure(self) -> "Settings":
         if self.auth_cookie_samesite == "none" and not self.auth_cookie_secure:

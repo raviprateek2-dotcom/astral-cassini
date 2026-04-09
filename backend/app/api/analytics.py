@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_job_access
 from app.core.observability import snapshot as observability_snapshot
 from app.models.db_models import Job, CandidateScore, Recommendation, AuditEvent, Outreach, Offer, User
 
@@ -150,12 +150,10 @@ async def time_to_hire(
 async def job_roi(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _=Depends(_auth),
+    current_user: Annotated[User, Depends(_auth)],
 ):
     """Calculate ROI and Time Savings for a specific job pipeline."""
-    job = db.query(Job).filter(Job.job_id == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = require_job_access(db, current_user, job_id)
 
     state: dict = dict(job.workflow_state or {})
     candidates_count = len(state.get("candidates", []))

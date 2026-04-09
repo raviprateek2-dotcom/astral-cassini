@@ -9,10 +9,11 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from app.core.database import get_db
-from app.core.auth import get_current_user, RequireHR
+from app.core.auth import get_current_user, RequireHR, require_job_access
 from app.models.db_models import User
 from app.models.state import Assessment, DecisionTrace, Recommendation
 from app.tools.email_tool import send_interview_invitation
+from app.config import settings
 from app.core.orchestrator import (
     approve_stage,
     reject_stage,
@@ -35,9 +36,10 @@ async def approve(
     job_id: str,
     req: ApprovalRequest,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, RequireHR],
+    current_user: Annotated[User, RequireHR],
 ):
     """Approve the current HITL gate and resume the workflow (HR only)."""
+    require_job_access(db, current_user, job_id)
     try:
         result = await approve_stage(db, job_id, feedback=req.feedback, updated_jd=req.updated_jd)
         if result.get("error") and result.get("status") != "running":
@@ -52,9 +54,10 @@ async def reject(
     job_id: str,
     req: ApprovalRequest,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, RequireHR],
+    current_user: Annotated[User, RequireHR],
 ):
     """Reject the current HITL gate with feedback (HR only)."""
+    require_job_access(db, current_user, job_id)
     if not req.feedback:
         raise HTTPException(
             status_code=400,
@@ -67,7 +70,8 @@ async def reject(
 
 
 class PatchStateRequest(BaseModel):
-    action: str
+    action: str = "manual_patch"
+    reason: str = ""
     state_updates: dict
 
 
@@ -111,14 +115,45 @@ async def patch_state(
     Useful for E2E testing and agent-override scenarios.
     """
     try:
+        require_job_access(db, current_user, job_id)
+        if str(current_user.role) != "admin":
+            raise HTTPException(status_code=403, detail="Manual state patch is admin-only")
+        if str(settings.app_env).lower() == "production":
+            raise HTTPException(status_code=403, detail="Manual state patch is disabled in production")
+        allowed_fields = {
+            "current_stage",
+            "human_feedback",
+            "job_description",
+            "jd_approval",
+            "shortlist_approval",
+            "hire_approval",
+            "candidates",
+            "scored_candidates",
+            "scheduled_interviews",
+            "interview_assessments",
+            "final_recommendations",
+            "decision_traces",
+            "candidate_responses",
+            "offer_details",
+            "error",
+        }
+        disallowed = [k for k in req.state_updates.keys() if k not in allowed_fields]
+        if disallowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported state update keys: {', '.join(sorted(disallowed))}",
+            )
+        audit_detail = req.reason or f"Manual patch keys: {', '.join(sorted(req.state_updates.keys()))}"
         result = await resume_workflow(
             db=db,
             user_id=int(current_user.id),
             job_id=job_id,
-            action=req.action,
-            state_updates=req.state_updates
+            action="manual_patch",
+            state_updates={**req.state_updates, "human_feedback": audit_detail},
         )
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -131,6 +166,7 @@ async def interview_invite(
     current_user: Annotated[User, RequireHR],
 ):
     """HR action: create/send interview meeting link to a candidate."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -176,6 +212,7 @@ async def interview_complete(
     current_user: Annotated[User, RequireHR],
 ):
     """HR action: record interview result and only progress when selected."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -263,6 +300,7 @@ async def generate_offer(
     current_user: Annotated[User, RequireHR],
 ):
     """HR action: one-click offer generation for selected candidates."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -283,10 +321,11 @@ async def capture_response(
     job_id: str,
     req: CandidateResponseRequest,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, RequireHR],
+    current_user: Annotated[User, RequireHR],
 ):
     """Capture real candidate response payloads from an external communication flow."""
     try:
+        require_job_access(db, current_user, job_id)
         return append_candidate_response(
             db=db,
             job_id=job_id,
@@ -302,9 +341,10 @@ async def capture_response(
 async def get_status(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get current pipeline stage for a job."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -319,9 +359,10 @@ async def get_status(
 async def get_audit(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get the full audit trail for a job."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -337,9 +378,10 @@ async def get_audit(
 async def get_interviews(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get scheduled interviews and assessments for a job."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -356,9 +398,10 @@ async def get_interviews(
 async def get_recommendations(
     job_id: str,
     db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Get final hire/no-hire recommendations for a job."""
+    require_job_access(db, current_user, job_id)
     status = get_workflow_status(db, job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")

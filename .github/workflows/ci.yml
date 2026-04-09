@@ -78,7 +78,6 @@ jobs:
 
   backend-security-audit:
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: backend
@@ -96,7 +95,6 @@ jobs:
 
   frontend-security-audit:
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: frontend

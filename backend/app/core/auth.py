@@ -77,6 +77,26 @@ def user_may_subscribe_job_ws(user: User, job: Job) -> bool:
     return int(owner_id) == int(user.id)
 
 
+def user_can_access_job(user: User, job: Job) -> bool:
+    """Authorization policy for job-scoped API access."""
+    if str(user.role) == "admin":
+        return True
+    owner_id = job.created_by_id
+    if owner_id is None:
+        return False
+    return int(owner_id) == int(user.id)
+
+
+def require_job_access(db: Session, user: User, job_id: str) -> Job:
+    """Resolve a job and enforce ownership/admin scope."""
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if not user_can_access_job(user, job):
+        raise HTTPException(status_code=403, detail="Forbidden: job access denied")
+    return job
+
+
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

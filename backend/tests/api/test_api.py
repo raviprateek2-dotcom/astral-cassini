@@ -113,6 +113,7 @@ async def test_workflow_recommendations_includes_decision_traces(client, db):
         job_id="trc-job1",
         job_title="Trace Test",
         department="Eng",
+        created_by_id=1,
         current_stage="decision",
         workflow_state={
             "final_recommendations": [
@@ -389,4 +390,155 @@ async def test_delete_job_pipeline(client, db):
     gone = client.get(f"/api/jobs/{job_id}")
     assert gone.status_code == status.HTTP_404_NOT_FOUND
 
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_non_owner_cannot_read_job(client, db):
+    """Non-admin users cannot access jobs they do not own."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    created = await start_workflow(
+        db,
+        1,
+        "Owner Only Role",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=2,
+        email="other@prohr.ai",
+        role="hr_manager",
+        is_active=True,
+    )
+    response = client.get(f"/api/jobs/{job_id}")
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_admin_can_read_non_owned_job(client, db):
+    """Admin users can access jobs they do not own."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    created = await start_workflow(
+        db,
+        1,
+        "Admin Access Role",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=99,
+        email="admin@prohr.ai",
+        role="admin",
+        is_active=True,
+    )
+    response = client.get(f"/api/jobs/{job_id}")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["job_id"] == job_id
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_manual_patch_requires_admin(client, db):
+    """PATCH /api/workflow/{job_id}/state is restricted to admin users."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    created = await start_workflow(
+        db,
+        1,
+        "Patch Guard Role",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="hr@prohr.ai",
+        role="hr_manager",
+        is_active=True,
+    )
+    response = client.patch(
+        f"/api/workflow/{job_id}/state",
+        json={"action": "manual_patch", "state_updates": {"current_stage": "screening"}},
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_manual_patch_rejects_disallowed_keys(client, db):
+    """PATCH /api/workflow/{job_id}/state rejects unsupported fields."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    created = await start_workflow(
+        db,
+        1,
+        "Patch Allowlist Role",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="admin@prohr.ai",
+        role="admin",
+        is_active=True,
+    )
+    response = client.patch(
+        f"/api/workflow/{job_id}/state",
+        json={"action": "manual_patch", "state_updates": {"created_by_id": 999}},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Unsupported state update keys" in response.json()["detail"]
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_cookie_auth_mutation_requires_csrf_header(client):
+    """Cookie-authenticated POST must provide matching CSRF header."""
+    client.cookies.set("access_token", "dummy-session-token")
+    client.cookies.set("csrf_token", "csrf-123")
+
+    denied = client.post("/api/auth/logout")
+    assert denied.status_code == status.HTTP_403_FORBIDDEN
+
+    allowed = client.post("/api/auth/logout", headers={"x-csrf-token": "csrf-123"})
+    assert allowed.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_resume_upload_rejects_oversized_file(client, monkeypatch):
+    """Resume upload rejects files beyond configured max size."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.config import settings
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=5,
+        email="hr-upload@prohr.ai",
+        role="hr_manager",
+        is_active=True,
+    )
+    monkeypatch.setattr(settings, "resume_upload_max_bytes", 8)
+    files = {"file": ("resume.pdf", b"%PDF-1.4-too-large", "application/pdf")}
+    response = client.post("/api/resumes/upload", files=files, headers={"x-csrf-token": "t"})
+    assert response.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     app.dependency_overrides.pop(get_current_user)

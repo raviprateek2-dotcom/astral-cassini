@@ -8,6 +8,7 @@ import {
   type HealthResponse,
   type ScoreDistributionPayload,
 } from "@/lib/api";
+import { fetchWithCache, invalidateCache } from "@/lib/dataCache";
 import type { JobSummary } from "./DashboardSections";
 
 type HealthStatus = HealthResponse | null;
@@ -27,11 +28,18 @@ export function useDashboardData() {
     if (mode === "initial") setLoading(true);
     if (mode === "manual") setRefreshing(true);
     try {
+      const force = mode === "manual";
       const [jobsData, healthData, analyticsData, scoreData] = await Promise.all([
-        api.listJobs().catch(() => []),
-        api.health().catch((): null => null),
-        api.getAnalyticsDashboard().catch((): null => null),
-        api.getAnalyticsScoreDistribution().catch((): null => null),
+        fetchWithCache("jobs:list", () => api.listJobs(), { ttlMs: 10_000, force }).catch(() => []),
+        fetchWithCache("health", () => api.health(), { ttlMs: 10_000, force }).catch((): null => null),
+        fetchWithCache("analytics:dashboard", () => api.getAnalyticsDashboard(), { ttlMs: 10_000, force }).catch(
+          (): null => null
+        ),
+        fetchWithCache(
+          "analytics:score_distribution",
+          () => api.getAnalyticsScoreDistribution(),
+          { ttlMs: 10_000, force }
+        ).catch((): null => null),
       ]);
       setJobs(jobsData);
       setHealth(healthData);
@@ -44,6 +52,8 @@ export function useDashboardData() {
         });
       }
       if (mode === "manual") {
+        invalidateCache("jobs:");
+        invalidateCache("analytics:");
         toast.success("Dashboard updated");
       }
     } catch {
