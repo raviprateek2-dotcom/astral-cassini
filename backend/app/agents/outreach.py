@@ -28,6 +28,26 @@ GUIDELINES:
 
 OUTPUT FORMAT: Return a JSON object with "subject" and "body" keys."""
 
+def _response_to_text(content: object) -> str:
+    """Normalize LangChain response content into plain text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                else:
+                    parts.append(str(item))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
 
 def create_outreach_agent():
     """Create the Outreach Agent node function."""
@@ -82,14 +102,14 @@ Context (JD):
                 import json
                 try:
                     # Attempt to extract JSON from markdown if necessary
-                    content = response.content.strip()
+                    content = _response_to_text(response.content).strip()
                     if "```json" in content:
                         content = content.split("```json")[1].split("```")[0].strip()
                     email_data = json.loads(content)
                 except Exception:
                     email_data = {
                         "subject": f"Opportunity at PRO HR: {job_title}",
-                        "body": response.content
+                        "body": _response_to_text(response.content)
                     }
 
                 outreach_emails.append(
