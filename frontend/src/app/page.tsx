@@ -74,6 +74,23 @@ export default function LandingPage() {
         { id: 5, name: "Coordinator", pro: "Late-Stage Ops", feature: "Scheduling, interview assessment, deterministic hire decision, and offer drafting in one orchestrated node.", icon: "📅" },
     ];
     const trustHighlights = ["Human-in-the-loop approvals", "Full audit trail visibility", "Role-based secure workflows"];
+    const workflowSteps = [
+        {
+            title: "Define Role",
+            detail: "Capture the role requirements and let JD Architect generate a structured, editable JD.",
+            icon: "1",
+        },
+        {
+            title: "Approve With Control",
+            detail: "Review at JD, shortlist, and hire gates so humans remain in charge of key outcomes.",
+            icon: "2",
+        },
+        {
+            title: "Hire With Evidence",
+            detail: "Track interview-to-offer progression with explainable decisions and a full audit trail.",
+            icon: "3",
+        },
+    ];
 
     const [activeMember, setActiveMember] = React.useState<number | null>(null);
 
@@ -186,6 +203,15 @@ export default function LandingPage() {
                             Explore how it works
                         </button>
                     </div>
+
+                    <div style={{ marginTop: 20, display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+                        <Link href="/jobs" style={{ color: "var(--text-muted)", fontSize: "0.88rem", textDecoration: "underline", textUnderlineOffset: "4px" }}>
+                            I am an HR Manager
+                        </Link>
+                        <Link href="/dashboard" style={{ color: "var(--text-muted)", fontSize: "0.88rem", textDecoration: "underline", textUnderlineOffset: "4px" }}>
+                            I am a Hiring Leader
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Animated Scroll Indicator */}
@@ -230,6 +256,24 @@ export default function LandingPage() {
                     <p style={{ marginTop: "40px", color: "var(--text-secondary)", fontSize: "1.1rem", maxWidth: "800px", marginInline: "auto" }}>
                         PRO HR combines semantic sourcing, explainable scoring, and deterministic orchestration to help teams hire faster with confidence.
                     </p>
+                </div>
+
+                <div className="glass-card" style={{ padding: "34px 30px", marginBottom: "80px" }}>
+                    <div style={{ textAlign: "center", marginBottom: 22 }}>
+                        <span className="badge badge-cyan" style={{ marginBottom: 12 }}>How It Works</span>
+                        <h3 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 800 }}>From Intake to Offer in 3 Steps</h3>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16 }}>
+                        {workflowSteps.map((step) => (
+                            <div key={step.title} style={{ border: "1px solid var(--border-glass)", borderRadius: 14, padding: 18, background: "rgba(255,255,255,0.02)" }}>
+                                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--gradient-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, marginBottom: 10 }}>
+                                    {step.icon}
+                                </div>
+                                <h4 style={{ margin: "0 0 8px", fontWeight: 700 }}>{step.title}</h4>
+                                <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: 1.5 }}>{step.detail}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* --- SECTION 3: THE 5-AGENT ECOSYSTEM --- */}
@@ -303,13 +347,22 @@ export default function LandingPage() {
                             </div>
                         ))}
                     </div>
+
+                    <div className="glass-card" style={{ marginTop: 22, padding: 24 }}>
+                        <h3 style={{ margin: "0 0 14px", fontSize: "1.1rem", fontWeight: 700 }}>What this means for your team</h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+                            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>- Faster role-to-shortlist cycle with deterministic stage movement.</p>
+                            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>- Better transparency through explainable scoring and audit logs.</p>
+                            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>- Human control at each high-impact decision point.</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* --- THE DEVELOPMENT TEAM --- */}
                 <div style={{ textAlign: "center", marginBottom: "60px" }}>
                     <span className="badge badge-purple" style={{ marginBottom: "16px" }}>The Visionaries</span>
                     <h2 style={{ fontSize: "3rem", fontWeight: 900, marginBottom: "16px" }}>Development Team</h2>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>Meet the students behind the PRO HR ecosystem</p>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>Meet the builders behind the PRO HR ecosystem</p>
                 </div>
 
                 <div style={{
