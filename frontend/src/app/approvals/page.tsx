@@ -54,34 +54,57 @@ export default function ApprovalsPage() {
     }
 
     const loadJobs = useCallback(async () => {
+        setLoading(true);
         try {
             const all = await api.listJobs();
             const candidateJobs = all.filter((j: JobListItem) =>
                 ["jd_review", "shortlist_review", "hire_review"].includes(j.current_stage),
             );
 
+            const detailTasks = candidateJobs.map(async (job) => {
+                try {
+                    const detail = await Promise.race<JobDetail>([
+                        api.getJob(job.job_id),
+                        new Promise<JobDetail>((_, reject) =>
+                            setTimeout(() => reject(new Error("job detail timeout")), 8000),
+                        ),
+                    ]);
+                    return { job, detail };
+                } catch {
+                    return { job, detail: null };
+                }
+            });
+
+            const resolved = await Promise.all(detailTasks);
             const nextDetails: Record<string, JobDetail> = {};
             const pending: JobListItem[] = [];
 
-            // Load details for each candidate job and keep only pending gate states.
-            for (const job of candidateJobs) {
-                try {
-                    const detail = await api.getJob(job.job_id);
+            for (const row of resolved) {
+                const { job, detail } = row;
+                const rawState = detail?.state;
+                const state: WorkflowBlob =
+                    rawState && typeof rawState === "object" && !Array.isArray(rawState)
+                        ? (rawState as WorkflowBlob)
+                        : {};
+
+                if (detail) {
                     nextDetails[job.job_id] = detail;
-                    const rawState = detail.state;
-                    const state: WorkflowBlob =
-                        rawState && typeof rawState === "object" && !Array.isArray(rawState)
-                            ? (rawState as WorkflowBlob)
-                            : {};
-                    if (isPendingApproval(job, state)) {
-                        pending.push(job);
-                    }
-                } catch { }
+                }
+
+                // If details fail/timeout, keep review-stage job visible instead of freezing the page.
+                if (detail ? isPendingApproval(job, state) : true) {
+                    pending.push(job);
+                }
             }
+
             setDetails(nextDetails);
             setJobs(pending);
-        } catch { }
-        setLoading(false);
+        } catch {
+            setJobs([]);
+            setDetails({});
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { AuditLogEntry, JobListItem } from "@/types/domain";
 
@@ -29,14 +30,28 @@ const agentIcons: Record<string, string> = {
 };
 
 export default function AuditPage() {
+    const searchParams = useSearchParams();
     const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
     const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        api.listJobs().then(setJobs).catch(() => { }).finally(() => setLoading(false));
-    }, []);
+        const selectedFromQuery = (searchParams.get("id") || "").trim();
+        api.listJobs()
+            .then((list) => {
+                setJobs(list);
+                if (selectedFromQuery && list.some((j) => j.job_id === selectedFromQuery)) {
+                    void loadAudit(selectedFromQuery);
+                } else {
+                    setLoading(false);
+                }
+            })
+            .catch(() => {
+                setLoading(false);
+            });
+    // Re-evaluate when query changes (e.g. clicking from Kanban with different job id).
+    }, [searchParams]);
 
     async function loadAudit(jobId: string) {
         setSelectedJob(jobId);
@@ -56,7 +71,13 @@ export default function AuditPage() {
             </p>
 
             <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
-                <select className="input" value={selectedJob} onChange={(e) => loadAudit(e.target.value)} style={{ maxWidth: 400 }}>
+                <select
+                    className="input"
+                    title="Select pipeline for audit trail"
+                    value={selectedJob}
+                    onChange={(e) => loadAudit(e.target.value)}
+                    style={{ maxWidth: 400 }}
+                >
                     <option value="">Select pipeline...</option>
                     {jobs.map((j) => (
                         <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>

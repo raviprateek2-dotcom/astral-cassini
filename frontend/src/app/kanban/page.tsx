@@ -15,10 +15,13 @@ const STAGES = [
     { key: "sourcing", label: "Sourcing", color: "#06b6d4", icon: "🔍" },
     { key: "screening", label: "Screening", color: "#8b5cf6", icon: "📊" },
     { key: "shortlist_review", label: "Shortlist ⏳", color: "#f59e0b", icon: "🤝" },
+    { key: "outreach", label: "Outreach", color: "#0ea5e9", icon: "📣" },
+    { key: "engagement", label: "Engagement", color: "#14b8a6", icon: "💬" },
     { key: "scheduling", label: "Scheduling", color: "#10b981", icon: "📅" },
     { key: "interviewing", label: "Interviews", color: "#ec4899", icon: "🎙️" },
     { key: "decision", label: "Decision", color: "#f43f5e", icon: "⚖️" },
     { key: "hire_review", label: "Hire Review ⏳", color: "#f59e0b", icon: "🤝" },
+    { key: "offer", label: "Offer", color: "#22c55e", icon: "📄" },
     { key: "completed", label: "Completed", color: "#10b981", icon: "✅" },
 ];
 
@@ -27,7 +30,7 @@ type Job = JobListItem;
 function JobCard({ job, isLive, onUpload }: { job: Job; isLive: boolean; onUpload: (job: Job) => void }) {
     return (
         <div style={{ position: "relative", marginBottom: 12 }}>
-            <Link href={`/jobs/${job.job_id}`} style={{ textDecoration: "none", color: "inherit" }}>
+            <Link href={`/audit?id=${job.job_id}`} style={{ textDecoration: "none", color: "inherit" }}>
                 <div
                     className="glass-card"
                     style={{
@@ -170,7 +173,7 @@ export default function KanbanPage() {
     // Only show stages that have jobs or are key pipeline stages
     const visibleStages = STAGES.filter(
         (s) => boardMap[s.key]?.length > 0 ||
-            ["jd_drafting", "sourcing", "screening", "interviewing", "completed"].includes(s.key)
+            ["jd_drafting", "sourcing", "screening", "outreach", "engagement", "interviewing", "offer", "completed"].includes(s.key)
     );
 
     return (
@@ -413,6 +416,7 @@ export default function KanbanPage() {
                             ref={fileInputRef}
                             style={{ display: "none" }}
                             accept=".pdf"
+                            title="Upload resume PDF"
                             onChange={handleFileUpload}
                             disabled={isUploading}
                         />
@@ -438,6 +442,7 @@ export default function KanbanPage() {
                         </label>
                         <select
                             className="input"
+                            title="Select monitored pipeline"
                             value={activeJobId || ""}
                             onChange={(e) => setActiveJobId(e.target.value)}
                             style={{ maxWidth: 360 }}
