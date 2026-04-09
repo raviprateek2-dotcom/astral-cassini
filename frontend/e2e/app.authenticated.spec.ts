@@ -60,6 +60,20 @@ test.describe("authenticated app", () => {
                 });
                 return;
             }
+            if (method === "GET" && path === "/api/jobs/e2e-job") {
+                await route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                        job_id: "e2e-job",
+                        job_title: "E2E Role",
+                        department: "QA",
+                        current_stage: "interviewing",
+                        state: {},
+                    }),
+                });
+                return;
+            }
             await route.fallback();
         });
 
