@@ -73,6 +73,7 @@ export default function LandingPage() {
         { id: 4, name: "Screener", pro: "Explainable Scoring", feature: "Match reasoning, competency gaps, and structured scores for every profile.", icon: "📊" },
         { id: 5, name: "Coordinator", pro: "Late-Stage Ops", feature: "Scheduling, interview assessment, deterministic hire decision, and offer drafting in one orchestrated node.", icon: "📅" },
     ];
+    const trustHighlights = ["Human-in-the-loop approvals", "Full audit trail visibility", "Role-based secure workflows"];
 
     const [activeMember, setActiveMember] = React.useState<number | null>(null);
 
@@ -140,34 +141,49 @@ export default function LandingPage() {
                     <p style={{
                         fontSize: "clamp(1.1rem, 2vw, 1.35rem)",
                         color: "var(--text-secondary)",
-                        marginBottom: "48px",
+                        marginBottom: "18px",
                         lineHeight: 1.6,
                         maxWidth: "700px",
                         marginInline: "auto"
                     }}>
-                        PRO HR runs a five-agent pipeline under a deterministic orchestrator from semantic sourcing through human gates to interviews and offers.
+                        Reduce hiring cycle time with deterministic AI execution and human approval gates at every critical decision.
                     </p>
+                    <p style={{ color: "var(--text-muted)", marginBottom: "36px", fontSize: "0.98rem" }}>
+                        Source better candidates, enforce governance, and move from requisition to offer with explainable decisions.
+                    </p>
+
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: "34px" }}>
+                        {trustHighlights.map((item) => (
+                            <span key={item} className="badge badge-blue" style={{ textTransform: "none", letterSpacing: "normal" }}>
+                                {item}
+                            </span>
+                        ))}
+                    </div>
 
                     <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
                         {!loading && user ? (
-                            <Link href="/dashboard">
-                                <button className="btn-primary" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
-                                    Go to Dashboard
-                                </button>
+                            <Link className="btn-primary" href="/dashboard" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                                Go to Dashboard
                             </Link>
                         ) : (
-                            <Link href="/login">
-                                <button className="btn-primary" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
-                                    Launch Control Center
-                                </button>
+                            <Link className="btn-primary" href="/login" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                                Launch Control Center
                             </Link>
                         )}
                         <button
-                            className="btn-outline"
-                            style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px" }}
-                            onClick={() => document.getElementById("submission-hub")?.scrollIntoView({ behavior: "smooth" })}
+                            style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "var(--text-secondary)",
+                                cursor: "pointer",
+                                fontWeight: 700,
+                                fontSize: "0.95rem",
+                                textDecoration: "underline",
+                                textUnderlineOffset: "4px",
+                            }}
+                            onClick={() => document.getElementById("overview")?.scrollIntoView({ behavior: "smooth" })}
                         >
-                            Explore Ecosystem
+                            Explore how it works
                         </button>
                     </div>
                 </div>
@@ -179,7 +195,7 @@ export default function LandingPage() {
             </section>
 
             {/* --- SECTION 2: PROJECT SUBMISSION HUB --- */}
-            <section id="submission-hub" style={{
+            <section id="overview" style={{
                 padding: "100px 20px",
                 maxWidth: "1200px",
                 margin: "0 auto",
@@ -188,8 +204,8 @@ export default function LandingPage() {
                 <div className="glass-card" style={{ padding: "60px", textAlign: "center", marginBottom: "80px", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "4px", background: "var(--gradient-primary)" }} />
                     
-                    <span className="badge badge-blue" style={{ marginBottom: "20px" }}>Project Submission Details</span>
-                    <h2 style={{ fontSize: "2.5rem", fontWeight: 800, marginBottom: "40px" }}>Strategic Project Overview</h2>
+                    <span className="badge badge-blue" style={{ marginBottom: "20px" }}>Platform Overview</span>
+                    <h2 style={{ fontSize: "2.5rem", fontWeight: 800, marginBottom: "40px" }}>Hiring Outcomes at a Glance</h2>
 
                     <div style={{
                         display: "grid",
@@ -198,30 +214,29 @@ export default function LandingPage() {
                         marginTop: "20px"
                     }}>
                         <div style={{ padding: "30px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "20px", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
-                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-blue)", marginBottom: "10px" }}>15</div>
-                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Project Team</div>
+                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-blue)", marginBottom: "10px" }}>5</div>
+                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Autonomous Agents</div>
                         </div>
                         <div style={{ padding: "30px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "20px", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
-                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-emerald)", marginBottom: "10px" }}>08</div>
-                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Active Members</div>
+                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-emerald)", marginBottom: "10px" }}>3</div>
+                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Human Approval Gates</div>
                         </div>
                         <div style={{ padding: "30px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "20px", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
-                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-purple)", marginBottom: "10px" }}>A+</div>
-                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Project Rating</div>
+                            <div style={{ fontSize: "3.5rem", fontWeight: 900, color: "var(--accent-purple)", marginBottom: "10px" }}>100%</div>
+                            <div style={{ fontSize: "1.1rem", fontWeight: 600, opacity: 0.8 }}>Auditable Decisions</div>
                         </div>
                     </div>
 
                     <p style={{ marginTop: "40px", color: "var(--text-secondary)", fontSize: "1.1rem", maxWidth: "800px", marginInline: "auto" }}>
-                        This project represents the cutting edge of autonomous recruitment technology, featuring a multi-layered agentic infrastructure, 
-                        FAISS vector retrieval, and human-in-the-loop validation for enterprise-grade MBA submission.
+                        PRO HR combines semantic sourcing, explainable scoring, and deterministic orchestration to help teams hire faster with confidence.
                     </p>
                 </div>
 
-                {/* --- SECTION 3: THE 7-AGENT ECOSYSTEM --- */}
+                {/* --- SECTION 3: THE 5-AGENT ECOSYSTEM --- */}
                 <div id="ecosystem" style={{ marginBottom: "120px" }}>
                     <div style={{ textAlign: "center", marginBottom: "60px" }}>
                         <span className="badge badge-purple" style={{ marginBottom: "16px" }}>Core Technology</span>
-                        <h2 style={{ fontSize: "3rem", fontWeight: 900, marginBottom: "16px" }}>7-Agent Strategic Workflow</h2>
+                        <h2 style={{ fontSize: "3rem", fontWeight: 900, marginBottom: "16px" }}>5-Agent Strategic Workflow</h2>
                         <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>A cohesive ecosystem where specialized autonomous agents collaborate in real-time</p>
                     </div>
 
