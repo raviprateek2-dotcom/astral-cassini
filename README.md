@@ -158,3 +158,55 @@ Before tagging/deploying, run the checklist in [docs/RELEASE_CHECKLIST.md](docs/
 - Informational: mypy-full-report, backend-security-audit, frontend-security-audit (non-blocking trend checks).
 - Always include rollback notes for auth/deploy flags (for example WS_ALLOW_LEGACY_BROWSER_TOKEN).
 
+## Project Closeout (Stability)
+
+Use this as the final runbook before handoff.
+
+### 1) Runtime stability checks (local)
+
+From repo root:
+
+```bash
+bash scripts/verify-all.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1
+```
+
+Expected outcome:
+- Backend lint/type/tests pass.
+- Frontend lint/tests/build pass.
+- Playwright smoke/full-stack flows pass.
+
+### 2) Pipeline health checks (manual)
+
+- Login as an HR user and create one pipeline.
+- Verify stage movement:
+  - `jd_review` -> `shortlist_review` -> `interviewing` -> `hire_review` -> `completed`
+- Confirm HITL gates at JD/shortlist/hire work as expected.
+- Confirm Kanban card click opens `Audit Trail` for that pipeline.
+- Confirm approved/completed pipelines no longer appear in pending approvals.
+
+### 3) Security and environment hardening
+
+- Keep `WS_ALLOW_LEGACY_BROWSER_TOKEN=false` outside emergency rollback windows.
+- Use a strong `SECRET_KEY` (32+ chars) and set `AUTH_COOKIE_SECURE=true` for HTTPS deployments.
+- Keep `.env`, local DB files, and generated auth state out of git (`.gitignore` already covers these).
+- Rotate shared API credentials before production handoff.
+
+### 4) CI/CD completion criteria
+
+- `secret-scan`, `backend`, and `frontend` jobs must be green.
+- Optional audit jobs (`mypy-full-report`, dependency audits) should be reviewed and tracked.
+- Merge only from a passing commit SHA.
+
+### 5) Ongoing maintenance cadence
+
+- Weekly: review dependency and security audit reports.
+- Per feature: add/adjust backend tests and Playwright coverage.
+- Per release: update `CHANGELOG.md` and rerun `scripts/verify-all.*`.
+- Monthly: validate live walkthrough path (create -> invite -> select -> offer -> completed).
+
