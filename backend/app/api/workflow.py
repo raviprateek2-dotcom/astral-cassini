@@ -6,10 +6,13 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, RequireHR
 from app.models.db_models import User
+from app.models.state import Assessment, DecisionTrace, Recommendation
+from app.tools.email_tool import send_interview_invitation
 from app.core.orchestrator import (
     approve_stage,
     reject_stage,
@@ -35,10 +38,13 @@ async def approve(
     _: Annotated[User, RequireHR],
 ):
     """Approve the current HITL gate and resume the workflow (HR only)."""
-    result = await approve_stage(db, job_id, feedback=req.feedback, updated_jd=req.updated_jd)
-    if result.get("error") and result.get("status") != "running":
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    try:
+        result = await approve_stage(db, job_id, feedback=req.feedback, updated_jd=req.updated_jd)
+        if result.get("error") and result.get("status") != "running":
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{job_id}/reject")
@@ -70,6 +76,30 @@ class CandidateResponseRequest(BaseModel):
     candidate_name: str
     response: str
 
+
+class InterviewInviteRequest(BaseModel):
+    candidate_id: str = ""
+    candidate_name: str
+    to_email: str
+    meeting_link: str
+    interview_type: str = "technical"
+    scheduled_time: str = ""
+    duration_minutes: int = 60
+    interviewers: list[str] = []
+
+
+class InterviewCompletionRequest(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    selected: bool
+    technical_score: float = 0.0
+    communication_score: float = 0.0
+    problem_solving_score: float = 0.0
+    cultural_fit_score: float = 0.0
+    observations: list[str] = []
+    concerns: list[str] = []
+
+
 @router.patch("/{job_id}/state")
 async def patch_state(
     job_id: str,
@@ -91,6 +121,161 @@ async def patch_state(
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{job_id}/interview-invite")
+async def interview_invite(
+    job_id: str,
+    req: InterviewInviteRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, RequireHR],
+):
+    """HR action: create/send interview meeting link to a candidate."""
+    status = get_workflow_status(db, job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    state = status.get("state", {}) or {}
+    interviews = state.get("scheduled_interviews", [])
+    if not isinstance(interviews, list):
+        interviews = []
+
+    row = {
+        "id": f"manual-{req.candidate_id or req.candidate_name}",
+        "candidate_id": req.candidate_id,
+        "candidate_name": req.candidate_name,
+        "interview_type": req.interview_type,
+        "scheduled_time": req.scheduled_time,
+        "duration_minutes": req.duration_minutes,
+        "interviewers": req.interviewers,
+        "meeting_link": req.meeting_link,
+        "status": "scheduled",
+    }
+    interviews.append(row)
+    send_interview_invitation(
+        to_email=req.to_email,
+        candidate_name=req.candidate_name,
+        job_title=status.get("job_title", "Role"),
+        interview_time=req.scheduled_time,
+        meeting_link=req.meeting_link,
+    )
+    return await resume_workflow(
+        db=db,
+        user_id=int(current_user.id),
+        job_id=job_id,
+        action="interview_invite",
+        state_updates={"scheduled_interviews": interviews, "current_stage": "interviewing"},
+    )
+
+
+@router.post("/{job_id}/interview-complete")
+async def interview_complete(
+    job_id: str,
+    req: InterviewCompletionRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, RequireHR],
+):
+    """HR action: record interview result and only progress when selected."""
+    status = get_workflow_status(db, job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    state = status.get("state", {}) or {}
+
+    assessments = state.get("interview_assessments", [])
+    if not isinstance(assessments, list):
+        assessments = []
+
+    overall = (
+        req.technical_score + req.communication_score + req.problem_solving_score + req.cultural_fit_score
+    ) / 4.0
+    assessment = Assessment(
+        candidate_id=req.candidate_id,
+        candidate_name=req.candidate_name,
+        technical_score=req.technical_score,
+        communication_score=req.communication_score,
+        problem_solving_score=req.problem_solving_score,
+        cultural_fit_score=req.cultural_fit_score,
+        overall_score=overall,
+        key_observations=req.observations,
+        concerns=req.concerns,
+        transcript_summary="HR recorded interview outcome.",
+    ).model_dump(mode="json")
+    assessments.append(assessment)
+
+    updates: dict = {"interview_assessments": assessments}
+    if req.selected:
+        recommendations = state.get("final_recommendations", [])
+        traces = state.get("decision_traces", [])
+        if not isinstance(recommendations, list):
+            recommendations = []
+        if not isinstance(traces, list):
+            traces = []
+        weighted = round(overall * 10, 1)
+        recommendations.append(
+            Recommendation(
+                candidate_id=req.candidate_id,
+                candidate_name=req.candidate_name,
+                decision="hire",
+                confidence=weighted,
+                screening_weight=0.0,
+                interview_weight=weighted,
+                overall_weighted_score=weighted,
+                reasoning="Selected by HR after interview completion.",
+                risk_factors=req.concerns,
+            ).model_dump(mode="json")
+        )
+        traces.append(
+            DecisionTrace(
+                candidate_id=req.candidate_id,
+                candidate_name=req.candidate_name,
+                screening_score=0.0,
+                interview_score_scaled=weighted,
+                concerns_count=len(req.concerns),
+                weighted_score=weighted,
+                decision="hire",
+                rule_applied="hr-selected-after-interview",
+            ).model_dump(mode="json")
+        )
+        updates.update(
+            {
+                "final_recommendations": recommendations,
+                "decision_traces": traces,
+                "hire_approval": "pending",
+                "current_stage": "hire_review",
+            }
+        )
+    else:
+        updates["current_stage"] = "interviewing"
+
+    return await resume_workflow(
+        db=db,
+        user_id=int(current_user.id),
+        job_id=job_id,
+        action="interview_complete",
+        state_updates=updates,
+    )
+
+
+@router.post("/{job_id}/generate-offer")
+async def generate_offer(
+    job_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, RequireHR],
+):
+    """HR action: one-click offer generation for selected candidates."""
+    status = get_workflow_status(db, job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    state = status.get("state", {}) or {}
+    if state.get("current_stage") != "hire_review":
+        raise HTTPException(status_code=400, detail="Offer generation is only available at hire_review stage")
+    return await resume_workflow(
+        db=db,
+        user_id=int(current_user.id),
+        job_id=job_id,
+        action="approve",
+        state_updates={"human_feedback": f"Offer generated by HR click @ {datetime.now().isoformat()}"},
+    )
 
 
 @router.post("/{job_id}/responses")

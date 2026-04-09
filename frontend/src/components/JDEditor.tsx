@@ -9,6 +9,15 @@ interface JDEditorProps {
 
 export default function JDEditor({ initialValue, onChange }: JDEditorProps) {
     const [value, setValue] = useState(initialValue);
+    const requiredSections = [
+        "Role Summary",
+        "Core Responsibilities",
+        "Required Qualifications",
+        "Preferred Qualifications",
+        "Compensation & Benefits",
+        "Interview Process",
+        "Equal Opportunity Statement",
+    ];
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
@@ -35,6 +44,27 @@ export default function JDEditor({ initialValue, onChange }: JDEditorProps) {
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                     {value.length} characters | Markdown supported
                 </span>
+            </div>
+
+            <div
+                style={{
+                    marginBottom: 12,
+                    padding: 12,
+                    borderRadius: 12,
+                    border: "1px dashed var(--border-glass)",
+                    background: "rgba(59, 130, 246, 0.06)",
+                }}
+            >
+                <p style={{ margin: "0 0 8px", fontSize: "0.78rem", fontWeight: 700, color: "var(--accent-blue)" }}>
+                    Required JD Sections
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {requiredSections.map((section) => (
+                        <span key={section} className="badge badge-blue" style={{ fontSize: "0.68rem" }}>
+                            {section}
+                        </span>
+                    ))}
+                </div>
             </div>
 
             <div 

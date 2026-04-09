@@ -35,6 +35,7 @@ function InsightsContent() {
     const jobId = searchParams.get("id");
     const [audit, setAudit] = useState<AuditLogEntry[]>([]);
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
+    const [jobs, setJobs] = useState<Array<{ job_id: string; job_title: string; current_stage?: string }>>([]);
     const [decisionTraces, setDecisionTraces] = useState<DecisionTrace[]>([]);
     const [observability, setObservability] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
@@ -43,6 +44,7 @@ function InsightsContent() {
         if (!jobId) {
             try {
                 const jobs = await api.listJobs();
+                setJobs(jobs);
                 if (jobs.length > 0) {
                     router.replace(`/insights?id=${jobs[0].job_id}`);
                 }
@@ -55,12 +57,14 @@ function InsightsContent() {
         }
         setLoading(true);
         try {
-            const [auditData, jobData, recommendationsData, healthData] = await Promise.all([
+            const [jobsData, auditData, jobData, recommendationsData, healthData] = await Promise.all([
+                api.listJobs(),
                 api.getAudit(jobId),
                 api.getJob(jobId),
                 api.getRecommendations(jobId),
                 api.health(),
             ]);
+            setJobs(jobsData);
             setAudit(auditData.audit_log ?? []);
             setJobDetails(jobData);
             setDecisionTraces((recommendationsData.decision_traces ?? []).map((trace: DecisionTraceRow) => ({
@@ -104,7 +108,21 @@ function InsightsContent() {
                         Strategic reasoning, bias audits, and RAG search logic for <span style={{ color: "var(--accent-blue)", fontWeight: 700 }}>{jobDetails?.job_title || "Pipeline"}</span>
                     </p>
                 </div>
-                <button className="btn-outline" onClick={loadData}>↺ Refresh Context</button>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <select
+                        className="input"
+                        value={jobId ?? ""}
+                        onChange={(e) => router.replace(`/insights?id=${e.target.value}`)}
+                        style={{ minWidth: 280 }}
+                    >
+                        {(jobs ?? []).map((j) => (
+                            <option key={j.job_id} value={j.job_id}>
+                                {j.job_title} ({j.current_stage ?? "unknown"})
+                            </option>
+                        ))}
+                    </select>
+                    <button className="btn-outline" onClick={loadData}>↺ Refresh Context</button>
+                </div>
             </div>
 
             {loading ? (

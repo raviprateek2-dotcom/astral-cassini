@@ -88,6 +88,24 @@ async def get_job(
     return status
 
 
+@router.delete("/{job_id}")
+async def delete_job(
+    job_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, RequireHR],
+):
+    """Delete a pipeline and all related records (HR/admin only)."""
+    from app.models.db_models import Job
+
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    db.delete(job)
+    db.commit()
+    return {"status": "deleted", "job_id": job_id}
+
+
 @router.post("/{job_id}/resumes")
 async def upload_resume(
     job_id: str,

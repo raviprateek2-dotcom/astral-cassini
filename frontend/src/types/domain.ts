@@ -57,6 +57,7 @@ export type JobDetail = JobListItem & {
 };
 
 export type InterviewRow = Record<string, unknown> & {
+    candidate_id?: string;
     candidate_name?: string;
     interview_type?: string;
     scheduled_time?: string;

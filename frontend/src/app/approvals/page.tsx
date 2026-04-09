@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import JDEditor from "@/components/JDEditor";
 import {
@@ -16,6 +16,21 @@ const stageLabels: Record<string, string> = {
     hire_review: "Hire Decision Review",
 };
 
+const requiredJDSections = [
+    "Role Summary",
+    "Core Responsibilities",
+    "Required Qualifications",
+    "Preferred Qualifications",
+    "Compensation & Benefits",
+    "Interview Process",
+    "Equal Opportunity Statement",
+];
+
+function missingJDSections(jd: string): string[] {
+    const content = jd.toLowerCase();
+    return requiredJDSections.filter((s) => !content.includes(s.toLowerCase()));
+}
+
 export default function ApprovalsPage() {
     const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -24,24 +39,50 @@ export default function ApprovalsPage() {
     const [details, setDetails] = useState<Record<string, JobDetail>>({});
     const [editedJDs, setEditedJDs] = useState<Record<string, string>>({});
 
-    const loadJobs = async () => {
+    function isPendingApproval(job: JobListItem, state?: WorkflowBlob): boolean {
+        const stage = job.current_stage;
+        if (stage === "jd_review") {
+            return (state?.jd_approval ?? "pending") === "pending";
+        }
+        if (stage === "shortlist_review") {
+            return (state?.shortlist_approval ?? "pending") === "pending";
+        }
+        if (stage === "hire_review") {
+            return (state?.hire_approval ?? "pending") === "pending";
+        }
+        return false;
+    }
+
+    const loadJobs = useCallback(async () => {
         try {
             const all = await api.listJobs();
-            const pending = all.filter((j: JobListItem) =>
-                ["jd_review", "shortlist_review", "hire_review"].includes(j.current_stage)
+            const candidateJobs = all.filter((j: JobListItem) =>
+                ["jd_review", "shortlist_review", "hire_review"].includes(j.current_stage),
             );
-            setJobs(pending);
 
-            // Load details for each pending job
-            for (const job of pending) {
+            const nextDetails: Record<string, JobDetail> = {};
+            const pending: JobListItem[] = [];
+
+            // Load details for each candidate job and keep only pending gate states.
+            for (const job of candidateJobs) {
                 try {
                     const detail = await api.getJob(job.job_id);
-                    setDetails((prev) => ({ ...prev, [job.job_id]: detail }));
+                    nextDetails[job.job_id] = detail;
+                    const rawState = detail.state;
+                    const state: WorkflowBlob =
+                        rawState && typeof rawState === "object" && !Array.isArray(rawState)
+                            ? (rawState as WorkflowBlob)
+                            : {};
+                    if (isPendingApproval(job, state)) {
+                        pending.push(job);
+                    }
                 } catch { }
             }
+            setDetails(nextDetails);
+            setJobs(pending);
         } catch { }
         setLoading(false);
-    };
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -50,9 +91,26 @@ export default function ApprovalsPage() {
         };
         init();
         return () => { isMounted = false; };
-    }, []);
+    }, [loadJobs]);
 
     async function handleApprove(jobId: string) {
+        const job = jobs.find((j) => j.job_id === jobId);
+        const rawState = details[jobId]?.state;
+        const detail: WorkflowBlob =
+            rawState && typeof rawState === "object" && !Array.isArray(rawState)
+                ? (rawState as WorkflowBlob)
+                : {};
+        if (job?.current_stage === "jd_review") {
+            const jdToValidate =
+                (editedJDs[jobId] && editedJDs[jobId].trim().length > 0
+                    ? editedJDs[jobId]
+                    : (typeof detail.job_description === "string" ? detail.job_description : "")) || "";
+            const missing = missingJDSections(jdToValidate);
+            if (missing.length > 0) {
+                alert(`JD approval blocked. Missing sections: ${missing.join(", ")}`);
+                return;
+            }
+        }
         setActionLoading(jobId);
         try {
             await api.approveStage(jobId, feedback[jobId] || "", editedJDs[jobId]);
@@ -69,6 +127,17 @@ export default function ApprovalsPage() {
         setActionLoading(jobId);
         try {
             await api.rejectStage(jobId, feedback[jobId]);
+            await loadJobs();
+        } catch { }
+        setActionLoading(null);
+    }
+
+    async function handleDelete(jobId: string) {
+        const ok = window.confirm("Delete this pipeline permanently? This cannot be undone.");
+        if (!ok) return;
+        setActionLoading(jobId);
+        try {
+            await api.deleteJob(jobId);
             await loadJobs();
         } catch { }
         setActionLoading(null);
@@ -280,6 +349,14 @@ export default function ApprovalsPage() {
                                             disabled={actionLoading === job.job_id}
                                         >
                                             ✕ Reject & Revise
+                                        </button>
+                                        <button
+                                            className="btn-outline"
+                                            onClick={() => handleDelete(job.job_id)}
+                                            disabled={actionLoading === job.job_id}
+                                            title="Delete this pipeline"
+                                        >
+                                            🗑️ Delete Pipeline
                                         </button>
                                     </div>
                                 </div>

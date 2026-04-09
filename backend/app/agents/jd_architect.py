@@ -24,9 +24,18 @@ Your role is to draft comprehensive, inclusive, and high-conversion job descript
 
 OPERATIONAL INSTRUCTIONS:
 1. INTERNAL MONOLOGUE: Before drafting, describe your reasoning for the JD's tone and structure based on the department and title.
-2. DRAFTING: Create a JD with Overview, Responsibilities, Required/Preferred Qualifications, and Benefits.
+2. DRAFTING: Create a JD with the mandatory section schema listed below.
 3. INCLUSIVITY AUDIT: After drafting, perform a short audit to ensure no gendered language, age bias, or exclusionary jargon.
 4. TRADE-OFF ANALYSIS: Identify which requirements might be "Unicorn Hunting" and suggest realistic alternatives.
+
+NON-NEGOTIABLE JD SECTION SCHEMA (in this order):
+- Role Summary
+- Core Responsibilities
+- Required Qualifications
+- Preferred Qualifications
+- Compensation & Benefits
+- Interview Process
+- Equal Opportunity Statement
 
 OUTPUT FORMAT:
 Your response MUST be in this precise structure:
@@ -54,7 +63,17 @@ async def jd_architect_node(state: SharedState) -> SharedState:
     )
 
     # Build the prompt
-    user_prompt = f"""Draft a comprehensive job description for the following role:
+    user_prompt = f"""Draft a comprehensive job description for the following role.
+Use this exact section order in Markdown:
+1) Role Summary
+2) Core Responsibilities
+3) Required Qualifications
+4) Preferred Qualifications
+5) Compensation & Benefits
+6) Interview Process
+7) Equal Opportunity Statement
+
+Role context:
 
 **Job Title:** {state.job_title}
 **Department:** {state.department}
@@ -86,7 +105,33 @@ Please incorporate this feedback into the revised job description.
     
     # Check if we should use mock data (no valid API key)
     if not settings.openai_api_key or "your-openai" in settings.openai_api_key:
-        mock_text = f"# {state.job_title}\n\n## Overview\nThis is a mock job description generated for testing purposes because the OpenAI API key is missing.\n\n## Requirements\n- " + "\n- ".join(state.requirements)
+        reqs = "\n".join(f"- {r}" for r in state.requirements) if state.requirements else "- TBD"
+        prefs = (
+            "\n".join(f"- {p}" for p in state.preferred_qualifications)
+            if state.preferred_qualifications
+            else "- None specified"
+        )
+        mock_text = (
+            f"# {state.job_title}\n\n"
+            f"## Role Summary\n"
+            f"Join the {state.department} team to drive measurable hiring outcomes with deterministic execution.\n\n"
+            f"## Core Responsibilities\n"
+            f"- Own delivery outcomes for the role area.\n"
+            f"- Collaborate across hiring stakeholders and maintain quality standards.\n\n"
+            f"## Required Qualifications\n"
+            f"{reqs}\n\n"
+            f"## Preferred Qualifications\n"
+            f"{prefs}\n\n"
+            f"## Compensation & Benefits\n"
+            f"- Salary Range: {state.salary_range}\n"
+            f"- Standard company benefits package.\n\n"
+            f"## Interview Process\n"
+            f"- Recruiter screen\n"
+            f"- Technical/functional round\n"
+            f"- Final panel\n\n"
+            f"## Equal Opportunity Statement\n"
+            f"We are an equal opportunity employer and evaluate candidates based on skills and role fit."
+        )
         
         if state.human_feedback:
             mock_text += f"\n\n## REVISION (Refined based on feedback)\nFEEDBACK: {state.human_feedback}"

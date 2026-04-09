@@ -102,6 +102,21 @@ function JobsPageContent() {
         }
     };
 
+    const handleDeleteJob = async (jobId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const ok = window.confirm("Delete this pipeline permanently? This cannot be undone.");
+        if (!ok) return;
+        try {
+            await api.deleteJob(jobId);
+            if (currentJob?.job_id === jobId) setCurrentJob(null);
+            toast.success("Pipeline deleted.");
+            fetchJobsList();
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to delete pipeline.";
+            toast.error("Delete failed", { description: message });
+        }
+    };
+
     const addListItem = (input: string, setInput: React.Dispatch<React.SetStateAction<string>>, list: string[], setList: (newList: string[]) => void) => {
         if (input.trim()) {
             setList([...list, input.trim()]);
@@ -338,9 +353,19 @@ function JobsPageContent() {
                                         <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>{job.job_title}</h4>
                                         <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>{job.department}</p>
                                     </div>
-                                    <span className="badge badge-purple" style={{ textTransform: "uppercase", fontSize: "0.65rem", letterSpacing: "1px" }}>
-                                        {job.current_stage}
-                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        <span className="badge badge-purple" style={{ textTransform: "uppercase", fontSize: "0.65rem", letterSpacing: "1px" }}>
+                                            {job.current_stage}
+                                        </span>
+                                        <button
+                                            className="btn-outline"
+                                            style={{ padding: "6px 10px", fontSize: "0.75rem" }}
+                                            onClick={(e) => void handleDeleteJob(job.job_id, e)}
+                                            title="Delete pipeline"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 16, borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 16 }}>
                                     <div style={{ flex: 1 }}>

@@ -14,6 +14,18 @@ export default function InterviewsPage() {
     const [selectedJob, setSelectedJob] = useState("");
     const [data, setData] = useState<InterviewsApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const [jobStage, setJobStage] = useState("");
+    const [inviteBusy, setInviteBusy] = useState(false);
+    const [offerBusy, setOfferBusy] = useState(false);
+    const [inviteForm, setInviteForm] = useState({
+        candidate_id: "",
+        candidate_name: "",
+        to_email: "",
+        meeting_link: "",
+        interview_type: "technical",
+        scheduled_time: "",
+        duration_minutes: 60,
+    });
 
     useEffect(() => {
         api.listJobs().then(setJobs).catch(() => { }).finally(() => setLoading(false));
@@ -23,10 +35,67 @@ export default function InterviewsPage() {
         setSelectedJob(jobId);
         setLoading(true);
         try {
-            const res = await api.getInterviews(jobId);
+            const [res, job] = await Promise.all([api.getInterviews(jobId), api.getJob(jobId)]);
             setData(res);
+            setJobStage(job.current_stage ?? "");
         } catch { }
         setLoading(false);
+    }
+
+    async function handleSendInvite() {
+        if (!selectedJob) return;
+        if (!inviteForm.candidate_name || !inviteForm.to_email || !inviteForm.meeting_link) {
+            alert("Candidate name, email, and meeting link are required.");
+            return;
+        }
+        setInviteBusy(true);
+        try {
+            await api.sendInterviewInvite(selectedJob, inviteForm);
+            await loadInterviews(selectedJob);
+            setInviteForm((p) => ({ ...p, candidate_id: "", candidate_name: "", to_email: "", meeting_link: "" }));
+        } catch {
+            alert("Failed to send interview invite.");
+        }
+        setInviteBusy(false);
+    }
+
+    async function handleInterviewDecision(int: InterviewRow, selected: boolean) {
+        if (!selectedJob) return;
+        const candidateId = String(int.candidate_id ?? int.candidate_name ?? "");
+        const candidateName = String(int.candidate_name ?? "");
+        if (!candidateId || !candidateName) {
+            alert("Candidate details missing for this row.");
+            return;
+        }
+        try {
+            await api.completeInterview(selectedJob, {
+                candidate_id: candidateId,
+                candidate_name: candidateName,
+                selected,
+                technical_score: 8.0,
+                communication_score: 8.0,
+                problem_solving_score: 8.0,
+                cultural_fit_score: 8.0,
+                observations: selected ? ["Selected by HR after interview."] : ["Not selected by HR."],
+                concerns: selected ? [] : ["Not selected"],
+            });
+            await loadInterviews(selectedJob);
+        } catch {
+            alert("Failed to save interview outcome.");
+        }
+    }
+
+    async function handleGenerateOffer() {
+        if (!selectedJob) return;
+        setOfferBusy(true);
+        try {
+            await api.generateOffer(selectedJob);
+            await loadInterviews(selectedJob);
+            alert("Offer generation triggered.");
+        } catch {
+            alert("Offer generation failed. Ensure pipeline is at hire_review.");
+        }
+        setOfferBusy(false);
     }
 
     const interviews = data?.scheduled_interviews || [];
@@ -53,6 +122,29 @@ export default function InterviewsPage() {
                 </select>
             </div>
 
+            {selectedJob && (
+                <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
+                    <h2 style={{ fontSize: "1rem", margin: "0 0 12px" }}>HR Interview Control</h2>
+                    <p style={{ margin: "0 0 12px", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        Create meeting links and send to students. Pipeline moves ahead only after interview completion and selection.
+                    </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <input className="input" placeholder="Candidate ID (optional)" value={inviteForm.candidate_id} onChange={(e) => setInviteForm((p) => ({ ...p, candidate_id: e.target.value }))} />
+                        <input className="input" placeholder="Candidate Name" value={inviteForm.candidate_name} onChange={(e) => setInviteForm((p) => ({ ...p, candidate_name: e.target.value }))} />
+                        <input className="input" placeholder="Student Email" value={inviteForm.to_email} onChange={(e) => setInviteForm((p) => ({ ...p, to_email: e.target.value }))} />
+                        <input className="input" placeholder="Meeting Link" value={inviteForm.meeting_link} onChange={(e) => setInviteForm((p) => ({ ...p, meeting_link: e.target.value }))} />
+                        <input className="input" type="datetime-local" value={inviteForm.scheduled_time} onChange={(e) => setInviteForm((p) => ({ ...p, scheduled_time: e.target.value }))} />
+                        <input className="input" type="number" min={15} value={inviteForm.duration_minutes} onChange={(e) => setInviteForm((p) => ({ ...p, duration_minutes: Number(e.target.value) }))} />
+                    </div>
+                    <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+                        <button className="btn-primary" onClick={() => void handleSendInvite()} disabled={inviteBusy}>
+                            {inviteBusy ? "Sending..." : "Send Meeting Link to Student"}
+                        </button>
+                        <span className="badge badge-blue">Stage: {jobStage || "unknown"}</span>
+                    </div>
+                </div>
+            )}
+
             {loading && selectedJob && (
                 <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><div className="spinner" /></div>
             )}
@@ -73,6 +165,7 @@ export default function InterviewsPage() {
                                 <th>Interviewers</th>
                                 <th>Meeting</th>
                                 <th>Status</th>
+                                <th>HR Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -108,10 +201,28 @@ export default function InterviewsPage() {
                                         )}
                                     </td>
                                     <td><span className="badge badge-emerald">{int.status}</span></td>
+                                    <td>
+                                        <div style={{ display: "flex", gap: 8 }}>
+                                            <button className="btn-success" onClick={() => void handleInterviewDecision(int, true)}>Select</button>
+                                            <button className="btn-danger" onClick={() => void handleInterviewDecision(int, false)}>Reject</button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {selectedJob && jobStage === "hire_review" && (
+                <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
+                    <h2 style={{ marginTop: 0 }}>Offer Letter</h2>
+                    <p style={{ color: "var(--text-muted)" }}>
+                        HR can generate offer letter after selecting candidate(s) from interviews.
+                    </p>
+                    <button className="btn-success" onClick={() => void handleGenerateOffer()} disabled={offerBusy}>
+                        {offerBusy ? "Generating..." : "Generate Offer Letter"}
+                    </button>
                 </div>
             )}
 

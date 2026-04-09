@@ -78,8 +78,19 @@ async def test_endpoint_approve_jd(client, db):
     job.current_stage = PipelineStage.JD_REVIEW.value
     db.commit()
     
-    # APPROVE JD
-    payload = {"feedback": "LGTM", "updated_jd": "Revised text"}
+    # APPROVE JD with all mandatory sections
+    payload = {
+        "feedback": "LGTM",
+        "updated_jd": (
+            "## Role Summary\nSummary\n\n"
+            "## Core Responsibilities\n- Build\n\n"
+            "## Required Qualifications\n- ML\n\n"
+            "## Preferred Qualifications\n- Physics\n\n"
+            "## Compensation & Benefits\n- Competitive\n\n"
+            "## Interview Process\n- 3 rounds\n\n"
+            "## Equal Opportunity Statement\nWe are an equal opportunity employer."
+        ),
+    }
     response = client.post(f"/api/workflow/{job_id}/approve", json=payload)
     
     assert response.status_code == status.HTTP_200_OK
@@ -342,5 +353,40 @@ async def test_prometheus_metrics_forbidden_for_non_admin(client):
     )
     response = client.get("/api/analytics/metrics")
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.mark.asyncio
+async def test_delete_job_pipeline(client, db):
+    """Verify DELETE /api/jobs/{job_id} removes a pipeline."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="hr@prohr.ai",
+        role="hr_manager",
+        is_active=True,
+    )
+
+    created = await start_workflow(
+        db,
+        1,
+        "Delete Me",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    response = client.delete(f"/api/jobs/{job_id}")
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["status"] == "deleted"
+    assert payload["job_id"] == job_id
+
+    gone = client.get(f"/api/jobs/{job_id}")
+    assert gone.status_code == status.HTTP_404_NOT_FOUND
 
     app.dependency_overrides.pop(get_current_user)

@@ -160,6 +160,7 @@ export const api = {
     createJob: (data: CreateJobPayload) => dataClient.post<CreateJobResponse>("/api/jobs", data),
     listJobs: () => dataClient.get<JobListItem[]>("/api/jobs"),
     getJob: (id: string) => dataClient.get<JobDetail>(`/api/jobs/${id}`),
+    deleteJob: (id: string) => dataClient.delete<{ status: string; job_id: string }>(`/api/jobs/${id}`),
 
     // Workflow
     approveStage: (id: string, feedback = "", updatedJD?: string) =>
@@ -173,6 +174,11 @@ export const api = {
     getInterviews: (id: string) => dataClient.get<InterviewsApiResponse>(`/api/workflow/${id}/interviews`),
     getRecommendations: (id: string) =>
         dataClient.get<RecommendationsApiResponse>(`/api/workflow/${id}/recommendations`),
+    sendInterviewInvite: (id: string, payload: Record<string, unknown>) =>
+        dataClient.post(`/api/workflow/${id}/interview-invite`, payload),
+    completeInterview: (id: string, payload: Record<string, unknown>) =>
+        dataClient.post(`/api/workflow/${id}/interview-complete`, payload),
+    generateOffer: (id: string) => dataClient.post(`/api/workflow/${id}/generate-offer`),
 
     // Candidates
     getCandidates: (jobId: string) =>

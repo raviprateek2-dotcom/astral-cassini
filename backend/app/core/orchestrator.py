@@ -32,6 +32,25 @@ _outreach_node = create_outreach_agent()
 _response_tracker_node = create_response_tracker()
 _offer_generator_node = create_offer_generator()
 
+REQUIRED_JD_SECTIONS = [
+    "Role Summary",
+    "Core Responsibilities",
+    "Required Qualifications",
+    "Preferred Qualifications",
+    "Compensation & Benefits",
+    "Interview Process",
+    "Equal Opportunity Statement",
+]
+
+
+def _missing_jd_sections(jd_text: str) -> list[str]:
+    content = jd_text.lower()
+    missing: list[str] = []
+    for section in REQUIRED_JD_SECTIONS:
+        if section.lower() not in content:
+            missing.append(section)
+    return missing
+
 
 class Orchestrator:
     """Manages execution flow of the recruitment pipeline deterministically."""
@@ -257,6 +276,15 @@ async def resume_workflow(
             
     if action == "approve":
         if state.current_stage == PipelineStage.JD_REVIEW.value:
+            candidate_jd = str(
+                (state_updates or {}).get("job_description", state.job_description or "")
+            )
+            missing = _missing_jd_sections(candidate_jd)
+            if missing:
+                raise ValueError(
+                    "JD approval blocked. Missing required sections: "
+                    + ", ".join(missing)
+                )
             state.jd_approval = "approved"
             state.current_stage = PipelineStage.SOURCING.value # Move forward
         elif state.current_stage == PipelineStage.SHORTLIST_REVIEW.value:
