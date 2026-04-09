@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import type { AuditLogEntry, JobListItem } from "@/types/domain";
@@ -29,12 +29,22 @@ const agentIcons: Record<string, string> = {
     "Human Reviewer": "👤",
 };
 
-export default function AuditPage() {
+function AuditPageContent() {
     const searchParams = useSearchParams();
     const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [selectedJob, setSelectedJob] = useState("");
     const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(true);
+
+    async function loadAudit(jobId: string) {
+        setSelectedJob(jobId);
+        setLoading(true);
+        try {
+            const data = await api.getAudit(jobId);
+            setAuditLog(data.audit_log || []);
+        } catch { setAuditLog([]); }
+        setLoading(false);
+    }
 
     useEffect(() => {
         const selectedFromQuery = (searchParams.get("id") || "").trim();
@@ -52,16 +62,6 @@ export default function AuditPage() {
             });
     // Re-evaluate when query changes (e.g. clicking from Kanban with different job id).
     }, [searchParams]);
-
-    async function loadAudit(jobId: string) {
-        setSelectedJob(jobId);
-        setLoading(true);
-        try {
-            const data = await api.getAudit(jobId);
-            setAuditLog(data.audit_log || []);
-        } catch { setAuditLog([]); }
-        setLoading(false);
-    }
 
     return (
         <div className="fade-in">
@@ -196,5 +196,13 @@ export default function AuditPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function AuditPage() {
+    return (
+        <Suspense fallback={<div className="fade-in" style={{ padding: 24 }}>Loading audit trail...</div>}>
+            <AuditPageContent />
+        </Suspense>
     );
 }

@@ -24,6 +24,30 @@ from app.models.state import (
     SharedState,
 )
 
+VALID_JD = """## Role Summary
+Own end-to-end QA outcomes for hiring workflow quality.
+
+## Core Responsibilities
+- Validate deterministic pipeline execution.
+
+## Required Qualifications
+- Python
+- Testing
+
+## Preferred Qualifications
+- CI/CD
+
+## Compensation & Benefits
+- Competitive salary and benefits.
+
+## Interview Process
+- HR screen
+- Technical round
+
+## Equal Opportunity Statement
+We are an equal opportunity employer.
+"""
+
 
 @pytest.mark.asyncio
 async def test_full_recruitment_pipeline_every_stage_to_completed(db, monkeypatch):
@@ -69,7 +93,13 @@ async def test_full_recruitment_pipeline_every_stage_to_completed(db, monkeypatc
     assert st.jd_approval == ApprovalStatus.PENDING.value
 
     # 2) Approve JD → sourcing → screening → shortlist review (HITL)
-    await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Approved for sourcing."})
+    await resume_workflow(
+        db,
+        1,
+        job_id,
+        "approve",
+        {"human_feedback": "Approved for sourcing.", "job_description": VALID_JD},
+    )
     db.commit()
     await run_until_halt()
     st = load_state()

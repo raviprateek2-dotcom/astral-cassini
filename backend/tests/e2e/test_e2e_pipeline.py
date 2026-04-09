@@ -10,6 +10,30 @@ from app.models.state import (
 from app.core.orchestrator import start_workflow, resume_workflow, Orchestrator
 from app.models.db_models import Job
 
+VALID_JD = """## Role Summary
+Lead applied research hiring with measurable outcomes.
+
+## Core Responsibilities
+- Drive core research delivery.
+
+## Required Qualifications
+- Deep Learning
+- Publication Record
+
+## Preferred Qualifications
+- Leadership
+
+## Compensation & Benefits
+- Competitive compensation and benefits.
+
+## Interview Process
+- Recruiter round
+- Technical round
+
+## Equal Opportunity Statement
+We are an equal opportunity employer.
+"""
+
 @pytest.mark.asyncio
 async def test_e2e_successful_hiring_cycle(db, monkeypatch):
     """Full recruitment lifecycle. Clears OpenAI key so conftest's ``test-key`` does not call the API."""
@@ -53,7 +77,9 @@ async def test_e2e_successful_hiring_cycle(db, monkeypatch):
             candidates=[CandidateProfile(name="Alice ML Expert")],
             jd_approval=ApprovalStatus.APPROVED.value,
         )
-        await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Perfect JD."})
+        await resume_workflow(
+            db, 1, job_id, "approve", {"human_feedback": "Perfect JD.", "job_description": VALID_JD}
+        )
         db.commit() # Ensure manual task can see approval
         
         orchestrator = Orchestrator(db, job_id)

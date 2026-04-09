@@ -19,6 +19,30 @@ from app.core.orchestrator import Orchestrator, resume_workflow, start_workflow
 from app.models.db_models import Job
 from app.models.state import ApprovalStatus, PipelineStage, SharedState
 
+VALID_JD = """## Role Summary
+Run QA outcomes for hiring platform reliability.
+
+## Core Responsibilities
+- Validate pipeline quality.
+
+## Required Qualifications
+- Python
+- Testing
+
+## Preferred Qualifications
+- Automation
+
+## Compensation & Benefits
+- Competitive package.
+
+## Interview Process
+- Recruiter screen
+- Technical interview
+
+## Equal Opportunity Statement
+We are an equal opportunity employer.
+"""
+
 
 async def _seed_job_at_jd_review(db, monkeypatch) -> str:
     """Create a job and halt it at JD_REVIEW pending."""
@@ -81,6 +105,7 @@ async def test_gate_matrix_jd_review_approve_and_reject(db, monkeypatch):
             "current_stage": PipelineStage.JD_REVIEW.value,
             "jd_approval": ApprovalStatus.PENDING.value,
             "human_feedback": "Looks good now.",
+            "job_description": VALID_JD,
         },
     )
     db.commit()
@@ -94,7 +119,9 @@ async def test_gate_matrix_shortlist_review_approve_and_reject(db, monkeypatch):
     job_id = await _seed_job_at_jd_review(db, monkeypatch)
 
     # Move workflow to shortlist_review (pending)
-    await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Approve JD"})
+    await resume_workflow(
+        db, 1, job_id, "approve", {"human_feedback": "Approve JD", "job_description": VALID_JD}
+    )
     db.commit()
     await Orchestrator(db, job_id).execute()
     st = _load_state(db, job_id)
@@ -131,7 +158,9 @@ async def test_gate_matrix_hire_review_approve_and_reject(db, monkeypatch):
     job_id = await _seed_job_at_jd_review(db, monkeypatch)
 
     # Advance to hire_review (pending)
-    await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Approve JD"})
+    await resume_workflow(
+        db, 1, job_id, "approve", {"human_feedback": "Approve JD", "job_description": VALID_JD}
+    )
     db.commit()
     await Orchestrator(db, job_id).execute()
     await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Approve shortlist"})

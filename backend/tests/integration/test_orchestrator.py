@@ -14,6 +14,30 @@ from app.models.state import (
 from app.models.db_models import Job
 from app.core.orchestrator import Orchestrator, start_workflow, resume_workflow
 
+VALID_JD = """## Role Summary
+Build reliable backend systems at scale.
+
+## Core Responsibilities
+- Design distributed backend services.
+
+## Required Qualifications
+- Go
+- Distributed Systems
+
+## Preferred Qualifications
+- Cloud infrastructure
+
+## Compensation & Benefits
+- Competitive package with benefits.
+
+## Interview Process
+- Recruiter screen
+- System design interview
+
+## Equal Opportunity Statement
+We are an equal opportunity employer.
+"""
+
 @pytest.mark.asyncio
 async def test_orchestrator_initialization(db):
     """Verify orchestrator correctly loads from DB."""
@@ -109,7 +133,13 @@ async def test_resume_workflow_approval(db):
                 candidates=[CandidateProfile(name="Mock candidate")],
             )
             with patch("app.core.orchestrator.start_orchestration"):
-                await resume_workflow(db, 1, job_id, "approve", {"human_feedback": "Looks good."})
+                await resume_workflow(
+                    db,
+                    1,
+                    job_id,
+                    "approve",
+                    {"human_feedback": "Looks good.", "job_description": VALID_JD},
+                )
             db.commit()
 
             orch = Orchestrator(db, job_id)
