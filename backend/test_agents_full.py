@@ -9,7 +9,7 @@ def test_full_agent_workflow():
     print("--- Starting Agent Intelligence Validation ---")
     
     # 1. Login
-    print("\n[1/5] Authenticating as HR Manager...")
+    print("\n[Step 1/5] Authenticating as HR Manager...")
     try:
         resp = requests.post(f"{BASE_URL}/auth/login", data={"username": "hr@prohr.ai", "password": "hr123"})
         resp.raise_for_status()
@@ -21,7 +21,7 @@ def test_full_agent_workflow():
         return
 
     # 2. Create Job
-    print("\n[2/5] Creating 'Senior AI Architect' Requisition...")
+    print("\n[Step 2/5] Creating 'Senior AI Architect' Requisition...")
     payload = {
         "job_title": "Senior AI Architect",
         "department": "Engineering",
@@ -36,7 +36,7 @@ def test_full_agent_workflow():
     print(f"OK: Job Created with ID: {job_id}")
 
     # 3. Wait for JD Architect (Agent 1)
-    print("\n[3/5] Waiting for JD Architect Agent to draft the description...")
+    print("\n[Step 3/5] Waiting for JD Architect Agent to draft the description...")
     max_retries = 40
     for i in range(max_retries):
         resp = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)
@@ -59,13 +59,13 @@ def test_full_agent_workflow():
         return
 
     # 4. Approve JD (HITL - Liaison Agent)
-    print("\n[4/5] Liaison Agent: Simulating HR Approval of JD...")
+    print("\n[Step 4/5] Liaison Agent: Simulating HR Approval of JD...")
     resp = requests.post(f"{BASE_URL}/workflow/{job_id}/approve", json={"feedback": "Looks great, proceed with sourcing."}, headers=headers)
     resp.raise_for_status()
     print("OK: JD Approved. Pipeline resuming...")
 
     # 5. Wait for Scout & Screener (Agent 3 & 4)
-    print("\n[5/5] Waiting for Scout (Sourcing) and Screener (Scoring) Agents...")
+    print("\n[Step 5/5] Waiting for Scout (Sourcing) and Screener (Scoring) Agents...")
     max_retries = 40
     for i in range(max_retries):
         resp = requests.get(f"{BASE_URL}/jobs/{job_id}", headers=headers)

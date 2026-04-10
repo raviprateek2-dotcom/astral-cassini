@@ -1,6 +1,6 @@
-"""Agent 10: Offer Generator — Generates final recruitment offer letters.
+"""Offer Generator — Generates final recruitment offer letters (offer pipeline stage).
 
-Takes the recommendation from The Decider and the job description to
+Takes the recommendation from the Hiring Ops Coordinator / decider output and the job description to
 draft a complete, professional offer letter in Markdown.
 """
 

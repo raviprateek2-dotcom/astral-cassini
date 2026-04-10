@@ -71,7 +71,9 @@ export default function LandingPage() {
         { id: 2, name: "The Liaison", pro: "Human Gates", feature: "HITL approvals for JD, shortlist, and hire decisions before the pipeline advances.", icon: "🛡️" },
         { id: 3, name: "Scout", pro: "Semantic Sourcing", feature: "FAISS-backed retrieval: semantic resume search using the approved job description.", icon: "🔭" },
         { id: 4, name: "Screener", pro: "Explainable Scoring", feature: "Match reasoning, competency gaps, and structured scores for every profile.", icon: "📊" },
-        { id: 5, name: "Coordinator", pro: "Late-Stage Ops", feature: "Scheduling, interview assessment, deterministic hire decision, and offer drafting in one orchestrated node.", icon: "📅" },
+        { id: 5, name: "Outreach", pro: "Candidate Engagement", feature: "Crafts personalized outreach emails and keeps tone aligned with the approved JD and stage.", icon: "✉️" },
+        { id: 6, name: "Response Tracker", pro: "Engagement Analytics", feature: "Tracks replies and engagement signals so the pipeline advances with evidence, not guesswork.", icon: "📈" },
+        { id: 7, name: "Hiring Ops Coordinator", pro: "Assessment & Closing", feature: "Schedules interviews, runs assessment, drives deterministic hire decisions, and hands off to offer generation at the final stage.", icon: "📅" },
     ];
     const trustHighlights = ["Human-in-the-loop approvals", "Full audit trail visibility", "Role-based secure workflows"];
     const workflowSteps = [
@@ -276,11 +278,11 @@ export default function LandingPage() {
                     </div>
                 </div>
 
-                {/* --- SECTION 3: THE 5-AGENT ECOSYSTEM --- */}
+                {/* --- SECTION 3: THE 7-AGENT ECOSYSTEM --- */}
                 <div id="ecosystem" style={{ marginBottom: "120px" }}>
                     <div style={{ textAlign: "center", marginBottom: "60px" }}>
                         <span className="badge badge-purple" style={{ marginBottom: "16px" }}>Core Technology</span>
-                        <h2 style={{ fontSize: "3rem", fontWeight: 900, marginBottom: "16px" }}>5-Agent Strategic Workflow</h2>
+                        <h2 style={{ fontSize: "3rem", fontWeight: 900, marginBottom: "16px" }}>7-Agent Strategic Workflow</h2>
                         <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>A cohesive ecosystem where specialized autonomous agents collaborate in real-time</p>
                     </div>
 

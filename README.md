@@ -43,7 +43,7 @@ Expected result: you should see a full hiring pipeline from job creation to fina
 ```
 Frontend (Next.js 16)  ->  FastAPI Backend  ->  Orchestrator (state machine)
                                                     |
-                                            5 pipeline agents (see below)
+                                            7 pipeline agents (see below)
                                                     |
                                     FAISS vector index (LangChain) + SQLite/Postgres
 ```
@@ -62,9 +62,9 @@ The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator
 | 2 | **The Liaison** | Human-in-the-loop approval gatekeeper (JD, shortlist, hire) |
 | 3 | **The Scout** | Semantic resume search over the FAISS index (RAG) |
 | 4 | **The Screener** | Gap analysis and scoring |
-| 5 | **The Coordinator** | Post-shortlist automation: scheduling, interview assessment (LLM), deterministic hire decision, offer drafting |
-
-Additional modules (`outreach`, `response_tracker`, standalone `offer_generator`) exist in the repo but are **not** part of the default orchestration path above.
+| 5 | **Outreach** | Personalized candidate outreach emails |
+| 6 | **Response Tracker** | Engagement-stage follow-up and conversion tracking |
+| 7 | **Hiring Ops Coordinator** | Post-shortlist automation: scheduling, interview assessment (LLM), deterministic hire decision; **Offer Generator** runs at the offer stage |
 
 ## Quick Start
 

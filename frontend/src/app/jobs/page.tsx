@@ -219,7 +219,7 @@ function JobsPageContent() {
                                                 <div style={{ maxWidth: "60%" }}>
                                                     <h4 style={{ margin: "0 0 4px", fontSize: "1rem" }}>Shortlist Approval Required</h4>
                                                     <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                                                        Verify the deterministic scores above. Approval will trigger Agent 5 (Coordinator) to schedule interviews.
+                                                        Verify the deterministic scores above. Approval will trigger the Hiring Ops Coordinator (Agent 7) to schedule interviews.
                                                     </p>
                                                 </div>
                                                 <div style={{ display: "flex", gap: 12 }}>

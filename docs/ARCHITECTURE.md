@@ -24,7 +24,7 @@ flowchart LR
 - The **orchestrator** is a **deterministic loop**: load `SharedState` from the `Job` row, run the agent function for the current `PipelineStage`, persist state, stop at **HITL breakpoints** or `COMPLETED`.
 - **It is not LangGraph** at runtime. LangGraph is only used by optional scripts (see below).
 
-**Wired agent modules:**
+**Wired agent modules (7 product-facing agents; eight Python entrypoints because offer is a dedicated stage):**
 
 | Stage area | Python module | Notes |
 |------------|---------------|--------|
@@ -32,9 +32,10 @@ flowchart LR
 | HITL (JD / shortlist / hire) | `app/agents/liaison.py` | Paused while approval fields are `pending` |
 | Sourcing | `app/agents/scout.py` | Calls RAG search |
 | Screening | `app/agents/screener.py` | |
-| Scheduling → interview → decision → offer | `app/agents/coordinator.py` | Single node covers multiple stages |
-
-**Not on the default execution graph:** `outreach.py`, `response_tracker.py`, and the standalone `offer_generator.py` factory (offer logic for the live path lives inside `coordinator.py`).
+| Outreach | `app/agents/outreach.py` | After shortlist approval |
+| Engagement | `app/agents/response_tracker.py` | Reply / engagement tracking |
+| Scheduling → interview → decision | `app/agents/coordinator.py` | Hire-review stage returns to `liaison.py` |
+| Offer letter | `app/agents/offer_generator.py` | `OFFER` pipeline stage |
 
 ## RAG and vector search
 

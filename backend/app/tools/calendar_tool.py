@@ -1,4 +1,4 @@
-"""Mock Calendar Tool for The Coordinator (Agent 5).
+"""Mock Calendar Tool for the Hiring Ops Coordinator (Agent 7).
 
 Simulates scheduling meetings via a calendar API.
 In production, this would integrate with Google Calendar API.

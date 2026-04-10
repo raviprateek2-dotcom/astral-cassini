@@ -1,4 +1,4 @@
-"""Agent 5: Hiring Operations Coordinator — Full pipeline execution.
+"""Agent 7: Hiring Operations Coordinator — Full pipeline execution.
 
 Consolidates the roles of:
 1. The Coordinator (Scheduling)

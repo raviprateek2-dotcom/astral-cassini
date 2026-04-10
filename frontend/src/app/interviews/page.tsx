@@ -105,7 +105,7 @@ export default function InterviewsPage() {
         <div className="fade-in">
             <h1 style={{ fontSize: "2rem", fontWeight: 800, margin: "0 0 4px" }}>Interview Management</h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 32px" }}>
-                Agent 5 (Coordinator) schedules • Agent 6 (Interviewer) assesses
+                Hiring Ops Coordinator (Agent 7) schedules interviews and records assessments
             </p>
 
             <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>

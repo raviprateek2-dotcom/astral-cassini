@@ -1,4 +1,4 @@
-"""Mock Email Tool for The Coordinator (Agent 5).
+"""Mock Email Tool for the Hiring Ops Coordinator (Agent 7).
 
 Simulates sending interview invitations via email.
 In production, this would integrate with SendGrid / SMTP.

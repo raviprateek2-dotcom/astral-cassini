@@ -1,4 +1,4 @@
-"""Agent 6: Response Tracker — Simulates candidate replies and evaluates engagement.
+"""Agent 6: Response Tracker — Candidate replies and engagement evaluation.
 
 In a production system, this would listen to webhooks from email or SMS providers.
 For this version, it simulates responses to ensure the end-to-end pipeline is functional.

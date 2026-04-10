@@ -1,4 +1,4 @@
-"""Agent 5: Outreach Agent — Crafts personalized recruitment emails.
+"""Agent 5: Outreach — Crafts personalized recruitment emails.
 
 Generates tailored outreach messages for shortlisted candidates using
 the job description and their specific resume/gap analysis.
