@@ -12,11 +12,13 @@ Tables:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
+
 from sqlalchemy import (
     Column, Integer, String, Float, Text, Boolean,
     DateTime, ForeignKey, JSON,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -67,7 +69,7 @@ class Job(Base):
     avg_match_percentage = Column(Float, default=0.0)
 
     # Full LangGraph state (JSON blob for restore)
-    workflow_state = Column(JSON, default=dict)
+    workflow_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Metadata
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)

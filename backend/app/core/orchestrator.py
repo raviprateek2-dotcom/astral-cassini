@@ -10,8 +10,6 @@ import uuid
 import asyncio
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any
-
 from sqlalchemy.orm import Session
 
 from app.models.state import SharedState, PipelineStage, CandidateResponse
@@ -30,18 +28,6 @@ from app.agents.offer_generator import create_offer_generator
 
 
 logger = logging.getLogger(__name__)
-
-
-def _persist_workflow_state(job: Job, blob: dict[str, Any]) -> None:
-    """Persist JSON workflow state on a Job row.
-
-    Declarative ``Job.workflow_state`` is typed as ``Column`` on the class; mypy
-    rejects ``dict`` assignment even though the instance attribute is the JSON
-    value at runtime (see mypy-full.ini CI).
-    """
-    job.workflow_state = blob  # type: ignore[assignment]
-
-
 _outreach_node = create_outreach_agent()
 _response_tracker_node = create_response_tracker()
 _offer_generator_node = create_offer_generator()
@@ -179,7 +165,7 @@ class Orchestrator:
     def _save_state(self):
         """Save Pydantic state directly into the SQLAlchemy DB."""
         self.job.current_stage = self.state.current_stage
-        _persist_workflow_state(self.job, self.state.model_dump(mode="json"))
+        self.job.workflow_state = self.state.model_dump(mode="json")
         
         # Sync Audit Log
         for entry in self.state.audit_log:
@@ -470,5 +456,5 @@ def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str 
     if last_error:
         run_state["last_error"] = last_error
     state["_orchestrator"] = run_state
-    _persist_workflow_state(job, state)
+    job.workflow_state = state
     db.commit()
