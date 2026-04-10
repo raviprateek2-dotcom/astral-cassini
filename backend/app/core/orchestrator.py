@@ -10,6 +10,8 @@ import uuid
 import asyncio
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.models.state import SharedState, PipelineStage, CandidateResponse
@@ -28,6 +30,27 @@ from app.agents.offer_generator import create_offer_generator
 
 
 logger = logging.getLogger(__name__)
+
+
+def _workflow_state_as_mutable_dict(job: Job) -> dict[str, Any]:
+    """Copy JSON workflow_state for in-place edits.
+
+    Avoid ``dict(job.workflow_state or {})``: when ``workflow_state`` is typed as
+    ``Column``/instrumented, mypy can infer ``dict[str, Column]`` and then reject
+    ``state['_orchestrator'] = <dict>`` on the full app check (mypy-full.ini).
+    """
+    raw: Any = job.workflow_state
+    if isinstance(raw, dict):
+        return dict(raw)
+    return {}
+
+
+def _assign_workflow_state(job: Job, blob: dict[str, Any]) -> None:
+    """Persist workflow_state JSON; Any shim avoids assignment-to-Column errors."""
+    mutable: Any = job
+    mutable.workflow_state = blob
+
+
 _outreach_node = create_outreach_agent()
 _response_tracker_node = create_response_tracker()
 _offer_generator_node = create_offer_generator()
@@ -165,7 +188,7 @@ class Orchestrator:
     def _save_state(self):
         """Save Pydantic state directly into the SQLAlchemy DB."""
         self.job.current_stage = self.state.current_stage
-        setattr(self.job, "workflow_state", self.state.model_dump(mode="json"))
+        _assign_workflow_state(self.job, self.state.model_dump(mode="json"))
         
         # Sync Audit Log
         for entry in self.state.audit_log:
@@ -444,7 +467,7 @@ def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str 
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         return
-    state = dict(job.workflow_state or {})
+    state = _workflow_state_as_mutable_dict(job)
     run_state = dict(state.get("_orchestrator", {}))
     now_iso = datetime.now(timezone.utc).isoformat()
     if status == "running":
@@ -456,6 +479,5 @@ def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str 
     if last_error:
         run_state["last_error"] = last_error
     state["_orchestrator"] = run_state
-    # setattr: avoids mypy assignment to InstrumentedAttribute/Column on some stub sets (CI).
-    setattr(job, "workflow_state", state)
+    _assign_workflow_state(job, state)
     db.commit()
