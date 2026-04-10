@@ -104,7 +104,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: npm ci, verify lockfile, npm audit (high/critical)
+      - name: npm ci, verify lockfile, audit gate (high/critical)
         run: |
           set -euxo pipefail
           npm --version
@@ -113,4 +113,4 @@ jobs:
           node scripts/assert-lock-patched.cjs
           node -e "const l=require('./package-lock.json'); console.log('lockfile:', 'axios='+l.packages['node_modules/axios'].version, 'next='+l.packages['node_modules/next'].version)"
           npm ls axios next --depth=0
-          npm audit --audit-level=high
+          node scripts/npm-audit-gate.cjs
