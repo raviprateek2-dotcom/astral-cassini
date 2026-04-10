@@ -10,6 +10,8 @@ import uuid
 import asyncio
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
+
 from sqlalchemy.orm import Session
 
 from app.models.state import SharedState, PipelineStage, CandidateResponse
@@ -165,7 +167,7 @@ class Orchestrator:
     def _save_state(self):
         """Save Pydantic state directly into the SQLAlchemy DB."""
         self.job.current_stage = self.state.current_stage
-        self.job.workflow_state = self.state.model_dump(mode='json')
+        cast(Any, self.job).workflow_state = self.state.model_dump(mode="json")
         
         # Sync Audit Log
         for entry in self.state.audit_log:
@@ -456,5 +458,6 @@ def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str 
     if last_error:
         run_state["last_error"] = last_error
     state["_orchestrator"] = run_state
-    setattr(job, "workflow_state", state)
+    # Instance JSON field; ORM maps it as Column[...] on the class — cast for mypy-full.ini.
+    cast(Any, job).workflow_state = state
     db.commit()
