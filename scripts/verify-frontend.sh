@@ -14,6 +14,10 @@ echo "== Frontend: install =="
 cd "${ROOT}/frontend"
 npm ci
 
+echo "== Frontend: lockfile + npm audit gate (high/critical) =="
+node scripts/assert-lock-patched.cjs
+node scripts/npm-audit-gate.cjs
+
 echo "== Frontend: ESLint =="
 npm run lint
 

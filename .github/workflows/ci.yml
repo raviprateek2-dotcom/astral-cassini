@@ -93,24 +93,6 @@ jobs:
       - name: pip-audit (high/critical report)
         run: python -m pip_audit
 
-  frontend-security-audit:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-      # No npm cache: always resolve tarballs from lockfile (avoids stale cache edge cases).
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - name: npm ci, verify lockfile, audit gate (high/critical)
-        run: |
-          set -euxo pipefail
-          npm --version
-          node --version
-          npm ci
-          node scripts/assert-lock-patched.cjs
-          node -e "const l=require('./package-lock.json'); console.log('lockfile:', 'axios='+l.packages['node_modules/axios'].version, 'next='+l.packages['node_modules/next'].version)"
-          npm ls axios next --depth=0
-          node scripts/npm-audit-gate.cjs
+  # npm high/critical gate runs inside scripts/verify-frontend.sh (frontend job) so there is
+  # a single audit path. A separate job named "npm audit (high/critical)" is a common stale
+  # duplicate in forks; remove it from this workflow to avoid two conflicting definitions.
