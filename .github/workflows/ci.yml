@@ -100,16 +100,17 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      # No npm cache: always resolve tarballs from lockfile (avoids stale cache edge cases).
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
-        run: npm ci
-      - name: Assert lockfile pins patched axios / next
-        run: node scripts/assert-lock-patched.cjs
-      - name: npm audit (high/critical)
+      - name: npm ci, verify lockfile, npm audit (high/critical)
         run: |
+          set -euxo pipefail
+          npm --version
+          node --version
+          npm ci
+          node scripts/assert-lock-patched.cjs
+          node -e "const l=require('./package-lock.json'); console.log('lockfile:', 'axios='+l.packages['node_modules/axios'].version, 'next='+l.packages['node_modules/next'].version)"
           npm ls axios next --depth=0
           npm audit --audit-level=high
