@@ -1,6 +1,8 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -15,6 +17,10 @@ const eslintConfig = defineConfig([
     "jest.config.js",
   ]),
   {
+    plugins: {
+      react,
+      "react-hooks": reactHooks,
+    },
     rules: {
       // Incremental cleanup: avoid failing CI on legacy pages while new code stays strict in review.
       "@typescript-eslint/no-explicit-any": "warn",
@@ -25,9 +31,18 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["e2e/**/*.ts"],
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
       // Playwright fixture API uses a callback parameter named `use`, not a React Hook.
       "react-hooks/rules-of-hooks": "off",
+    },
+  },
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 ]);

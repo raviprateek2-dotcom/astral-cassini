@@ -61,7 +61,7 @@ function runNpmAuditJson() {
   }
 }
 
-const { code, report } = runNpmAuditJson();
+const { report } = runNpmAuditJson();
 const vulns = report.vulnerabilities || {};
 const keys = Object.keys(vulns);
 
