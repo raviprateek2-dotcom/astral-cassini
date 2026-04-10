@@ -456,5 +456,5 @@ def _record_run_metadata(db: Session, job_id: str, status: str, last_error: str 
     if last_error:
         run_state["last_error"] = last_error
     state["_orchestrator"] = run_state
-    job.workflow_state = state
+    setattr(job, "workflow_state", state)
     db.commit()
