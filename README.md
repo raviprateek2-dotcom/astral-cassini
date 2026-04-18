@@ -108,7 +108,14 @@ Backend runs at **<http://localhost:8000>** (API docs: `/docs`)
 
 ### Frontend Setup
 
-The repository root has a **`package.json`** / **`package-lock.json`** that list **`next`**, **`react`**, and **`react-dom`** so tools such as **Vercel** can detect Next.js when the Git root is the project root. **Install and build the app in `frontend/`** (that is where the real app and `package-lock.json` live). Deployments use **`vercel.json`** at the repo root (`installCommand` / `buildCommand` run with `--prefix frontend`). In the Vercel dashboard you can instead set **Root Directory** to **`frontend`** and simplify; the committed files support **either** layout.
+The root **`package.json`** / **`package-lock.json`** are minimal so CI and other automation can detect **npm** at the repo root. All app dependencies and **`next`** live under **`frontend/`**.
+
+#### Vercel
+
+1. Import this Git repository.
+2. Open **Project → Settings → Build and Deployment → Root Directory** → **Edit** → set to **`frontend`** → **Save**.  
+   This makes Vercel read **`frontend/package.json`**, so **Next.js is detected** and default install/build (`npm ci`, `next build`) run in the right folder.
+3. Add env vars (see **`frontend/.env.example`**) such as **`NEXT_PUBLIC_API_URL`** for your deployed API.
 
 ```bash
 cd frontend

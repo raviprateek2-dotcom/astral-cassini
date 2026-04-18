@@ -1,10 +1,5 @@
 {
   "name": "astral-cassini",
   "private": true,
-  "description": "Repository root. The Next.js app and full dependency tree live in frontend/. These root dependencies exist so Vercel can detect Next.js when the Git root is the project root; installs and builds run in frontend/ (see vercel.json).",
-  "dependencies": {
-    "next": "16.2.3",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  }
+  "description": "Repository root marker (npm lockfile for tools that expect one at the Git root). The Next.js app lives in frontend/ — see README."
 }
