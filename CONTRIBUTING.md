@@ -26,8 +26,9 @@
 
 ## Local Setup
 
-- Backend: `cd backend && pip install -r requirements.txt`
-- Frontend: `cd frontend && npm install`
+- Clone: `git clone https://github.com/raviprateek2-dotcom/astral-cassini.git && cd astral-cassini`
+- Backend: `cd backend && cp .env.example .env` (edit secrets) `&& pip install -r requirements.txt`
+- Frontend: `cd frontend && cp .env.example .env.local` (optional tweaks) `&& npm ci`
 - Start app:
   - backend: `uvicorn app.main:app --reload`
   - frontend: `npm run dev`

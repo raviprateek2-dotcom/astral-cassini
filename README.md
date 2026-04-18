@@ -68,10 +68,25 @@ The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator
 
 ## Quick Start
 
+### Clone this repository
+
+Canonical remote:
+
+```text
+https://github.com/raviprateek2-dotcom/astral-cassini
+```
+
+```bash
+git clone https://github.com/raviprateek2-dotcom/astral-cassini.git
+cd astral-cassini
+```
+
+**Fresh workstation:** copy env templates before first run — `backend/.env.example` → `backend/.env`, and `frontend/.env.example` → `frontend/.env.local` — then edit secrets (`SECRET_KEY`, `OPENAI_API_KEY`). Full automated checks from repo root: `bash scripts/verify-all.sh` (Linux/macOS/Git Bash) or `powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1` (Windows). For end-to-end UI validation, use [docs/PIPELINE-MANUAL-TEST-CHECKLIST.md](docs/PIPELINE-MANUAL-TEST-CHECKLIST.md).
+
 ### Prerequisites
 
 - **Python 3.11.x** (matches CI and `backend/Dockerfile`; use `.python-version` with pyenv). Other versions are not validated in CI.
-- **Node.js 20+** (matches CI; LTS recommended)
+- **Node.js 20+** (Next.js 16 supports this); **CI uses Node 22** (see `frontend/.nvmrc` if you use nvm).
 - OpenAI API Key
 
 ### Backend Setup
