@@ -1,5 +1,8 @@
 # Pipeline Manual Test Checklist
 
+> **HUMAN VERIFICATION REQUIRED**  
+> Only a **person** performing these steps in a real environment (browser + API) can mark items complete. **Do not** treat pre-checked boxes or CI as proof — reset boxes to `[ ]` when starting a new validation pass and record date + initials in your runbook or issue.
+
 Use this while validating one job pipeline end-to-end in the UI.
 
 ## Setup

@@ -512,6 +512,50 @@ async def test_manual_patch_rejects_disallowed_keys(client, db):
 
 
 @pytest.mark.asyncio
+async def test_manual_patch_records_state_patch_audit(client, db):
+    """Admin manual PATCH appends a state_patch row to workflow audit_log (in JSON state)."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import Job, User
+    from app.core.orchestrator import start_workflow
+
+    created = await start_workflow(
+        db,
+        1,
+        "Patch Audit Role",
+        "QA",
+        ["Python"],
+    )
+    job_id = created["job_id"]
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1,
+        email="admin@prohr.ai",
+        role="admin",
+        is_active=True,
+    )
+    response = client.patch(
+        f"/api/workflow/{job_id}/state",
+        json={
+            "action": "manual_patch",
+            "reason": "integration-test",
+            "state_updates": {"current_stage": "sourcing"},
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    app.dependency_overrides.pop(get_current_user)
+
+    db.expire_all()
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    assert job is not None
+    ws = job.workflow_state if isinstance(job.workflow_state, dict) else {}
+    logs = ws.get("audit_log") or []
+    assert any(
+        isinstance(x, dict) and x.get("action") == "state_patch" and "integration-test" in str(x.get("details", ""))
+        for x in logs
+    ), f"expected state_patch audit, last entries={logs[-3:]!r}"
+
+
+@pytest.mark.asyncio
 async def test_cookie_auth_mutation_requires_csrf_header(client):
     """Cookie-authenticated POST must provide matching CSRF header."""
     client.cookies.set("access_token", "dummy-session-token")

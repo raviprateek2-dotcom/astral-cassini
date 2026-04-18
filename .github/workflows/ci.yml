@@ -76,6 +76,8 @@ jobs:
       - name: Mypy (full app)
         run: python -m mypy --config-file mypy-full.ini app
 
+  # Blocks merge on pip-audit findings (any reported vuln in the resolved tree).
+  # Severity-only (high/critical) filtering is not in pip-audit JSON — tune via human review / follow-up script if needed.
   backend-security-audit:
     runs-on: ubuntu-latest
     defaults:
@@ -90,7 +92,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install pip-audit
-      - name: pip-audit (high/critical report)
+      - name: pip-audit (blocking)
         run: python -m pip_audit
 
   # npm high/critical gate runs inside scripts/verify-frontend.sh (frontend job) so there is

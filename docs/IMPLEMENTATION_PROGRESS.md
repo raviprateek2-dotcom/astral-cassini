@@ -7,13 +7,34 @@ Single source of truth for the **Track 1 then Track 2** program. Update this fil
 
 ---
 
+## HUMAN INPUT REQUIRED (read first)
+
+> **These items cannot be closed by automation or by an AI “decision.”**  
+> A **person** must execute the check, record evidence (date + initials or link), and update the checklist or this table.  
+> CI green **does not** replace: exploratory UI passes, role judgment, WebSocket behavior in a real browser, or release sign-off.
+
+| Gate | What a human must do |
+|------|----------------------|
+| Track 1.3–1.6 | Run [PIPELINE-MANUAL-TEST-CHECKLIST.md](./PIPELINE-MANUAL-TEST-CHECKLIST.md) (two jobs), HR vs admin smoke, WS with `WS_ALLOW_LEGACY_BROWSER_TOKEN=false`. |
+| Track 2.8 | [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) — tag, rollback note, stakeholder sign-off. |
+| Audit noise | If `pip-audit` / `npm audit` is too strict or too loose, **humans** adjust policy (severity filters, allowlists) — tooling only reports. |
+
+**Legend (verification type):**
+
+| Tag | Meaning |
+|-----|---------|
+| **A** | **Automated** — CI or `scripts/verify-*.sh` / `verify-*.ps1` can prove it. |
+| **H** | **Human required** — no substitute for a person following the linked doc. |
+
+---
+
 ## Overall completion (roll-up)
 
-| Slice | Progress | Notes |
-|-------|----------|--------|
-| **Track 1** — Deep testing | **4 / 8 steps (50%)** | Automated paths done; **manual + WS** (1.3–1.6) still drive release confidence. |
-| **Track 2** — Security / hardening | **2 / 8 items (25%)** | **2.1 Done** (API isolation). **2.2 Done (MVP)** — per-job asyncio lock + coalesced follow-up run if `start_orchestration` is called while a task is active; see `test_orchestration_coalesce.py`. *Not* multi-worker safe; optional follow-up: reload state from DB each orchestrator loop. |
-| **Program (indicative)** | **~35%** | `0.4 × 50% + 0.6 × 25%` ≈ **35%** (Track 1 weight 40%, Track 2 weight 60%). *Dashboard only — manual Track 1 gates matter more than this number.* |
+| Slice | Progress | Verification | Notes |
+|-------|----------|--------------|--------|
+| **Track 1** — Deep testing | **4 / 8 steps (50%)** | Mixed **A** + **H** | Automated slices done; **H** steps 1.3–1.6 **open** until a human checks boxes. |
+| **Track 2** — Security / hardening | **4 / 8 items (50%)** | Mostly **A** | **2.1–2.4** marked done with automated tests/CI; **2.5–2.8** need code and/or **H** sign-off. |
+| **Program (indicative, automated only)** | **~50%** | **A** | `0.4 × (4/8) + 0.6 × (4/8)` ≈ **50%** for **A**-verifiable rows only — **do not** treat as product-ready while **H** rows are open. |
 
 Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
@@ -21,16 +42,16 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
 ## Track 1 — Deep testing (complete before Track 2)
 
-| Step | Status | Notes |
-|------|--------|-------|
-| 1.1 Baseline clone + env templates | Done | `backend/.env.example`, `frontend/.env.example` |
-| 1.2 `scripts/verify-all.ps1` / `verify-all.sh` | Done (PS1) | `verify-all.ps1` green on Windows (backend + frontend + Playwright full-stack). Run `verify-all.sh` on Linux/macOS or rely on GitHub Actions for parity. |
-| 1.3 Manual pipeline checklist (job A) | Pending | [PIPELINE-MANUAL-TEST-CHECKLIST.md](./PIPELINE-MANUAL-TEST-CHECKLIST.md) |
-| 1.4 Manual pipeline checklist (job B) | Pending | Second clean job |
-| 1.5 Role matrix (HR vs admin smoke) | Pending | Short table in Notes column or issue link |
-| 1.6 WebSocket smoke (`WS_ALLOW_LEGACY_BROWSER_TOKEN=false`) | Pending | Document result |
-| 1.7 Playwright full-stack (`PLAYWRIGHT_FULL_STACK=1`) | Done (dev) | `npm run build` then `npm run test:e2e:full`: smoke + setup + authed (incl. Approvals + Audit). Uses **`py -3.11`** on Windows; temp-dir SQLite by default (see `playwright.config.ts`). |
-| 1.8 CHANGELOG testing pass note | Done | `[Unreleased]` entries for this wave |
+| Step | Status | V | Notes |
+|------|--------|---|-------|
+| 1.1 Baseline clone + env templates | Done | A | `backend/.env.example`, `frontend/.env.example` |
+| 1.2 `scripts/verify-all.ps1` / `verify-all.sh` | Done (PS1) | A | `verify-all.ps1` green on Windows. **H:** run `verify-all.sh` or trust CI on Linux if you did not. |
+| 1.3 Manual pipeline checklist (job A) | Pending | **H** | [PIPELINE-MANUAL-TEST-CHECKLIST.md](./PIPELINE-MANUAL-TEST-CHECKLIST.md) |
+| 1.4 Manual pipeline checklist (job B) | Pending | **H** | Second clean job |
+| 1.5 Role matrix (HR vs admin smoke) | Pending | **H** | Short table in Notes or issue link |
+| 1.6 WebSocket smoke (`WS_ALLOW_LEGACY_BROWSER_TOKEN=false`) | Pending | **H** | Real browser; document result |
+| 1.7 Playwright full-stack (`PLAYWRIGHT_FULL_STACK=1`) | Done (dev) | A | `npm run build` then `npm run test:e2e:full` |
+| 1.8 CHANGELOG testing pass note | Done | A | `[Unreleased]` entries for this wave |
 
 ### Automated coverage added (Track 1)
 
@@ -42,25 +63,25 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
 ## Handoff gate (all must be true before Track 2)
 
-- [ ] Track 1 table: no open **blocker** without owner/issue.
-- [ ] CI green on the baseline SHA (or documented waiver).
+- [ ] **H** Track 1 table: no open **blocker** without owner/issue (human triage).
+- [ ] **A** CI green on the baseline SHA (or documented waiver).
 
-*Engineering note:* Track **2.1** tests run in CI regardless; full **Track 2** product hardening (2.2+) should still wait until manual Track 1 gates are satisfied or explicitly waived.
+*Engineering note:* Track **2.1** tests run in CI regardless; full **Track 2** product hardening should still wait until **H** Track 1 gates are satisfied or explicitly waived in writing.
 
 ---
 
 ## Track 2 — Security / hardening (after gate)
 
-| Order | Item | Status |
-|-------|------|--------|
-| 2.1 | Job-level auth policy + negative tests | **Done** | `test_job_access_isolation.py`: `GET /api/jobs/{id}`; admin read-all; workflow **GET** (status, audit, interviews, recommendations); **approve / reject / patch state / interview-invite / interview-complete / responses / generate-offer**; **GET candidates** — all **403** for non-owner `hr_manager`. |
-| 2.2 | Orchestration idempotency / durability | **Done (MVP)** | `start_orchestration` is **async** with per-job lock; overlapping triggers coalesce to one chained run. Tests: `tests/integration/test_orchestration_coalesce.py`. **Follow-ups:** multi-worker lock (Redis/SQL advisory); reload job state at each orchestrator loop for long-lived consistency. |
-| 2.3 | Restrict workflow `PATCH` state surface | Not started | Allowlist + admin-only already in code; verify audit + tests vs checklist. |
-| 2.4 | CI blocks high/critical dependency issues | Not started | |
-| 2.5 | CSRF for cookie-auth mutations | Not started | |
-| 2.6 | Upload limits / parser hardening | Not started | |
-| 2.7 | Frontend route guards | Not started | |
-| 2.8 | Release checklist sign-off | Not started | |
+| Order | Item | Status | V | Notes |
+|-------|------|--------|---|-------|
+| 2.1 | Job-level auth policy + negative tests | **Done** | A | `test_job_access_isolation.py` — workflow/job routes `403` for non-owner `hr_manager`. |
+| 2.2 | Orchestration idempotency / durability | **Done (MVP)** | A | Async `start_orchestration` + per-job lock + coalesced follow-up; `test_orchestration_coalesce.py`. **H:** multi-worker / prod SRE review if scaled. |
+| 2.3 | Restrict workflow `PATCH` state surface | **Done** | A | Admin-only, production disabled, allowlist; `test_manual_patch_*` + `test_manual_patch_records_state_patch_audit`. **H:** periodic review of allowlist keys. |
+| 2.4 | CI blocks dependency issues | **Done (as shipped)** | A | Workflow job **`backend-security-audit`** runs **`pip-audit`** and **fails on any reported vuln** (see `.github/workflows/ci.yml`). **H:** pip-audit JSON has no CVSS tier — if you need **high/critical-only**, a human must add filtering or ignore rules. |
+| 2.5 | CSRF for cookie-auth mutations | Partial | A+H | API tests exist (`test_cookie_auth_mutation_requires_csrf_header`); **H:** full UI regression. |
+| 2.6 | Upload limits / parser hardening | Partial | A | Oversize test exists; **H:** abuse cases in staging. |
+| 2.7 | Frontend route guards | Not started | A+H | |
+| 2.8 | Release checklist sign-off | Not started | **H** | [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) |
 
 See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) for acceptance criteria.
 
@@ -75,3 +96,4 @@ See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) f
 | 2026-04-18 | Track 2.1: workflow **PATCH state**, **interview-invite**, **interview-complete**, **responses**, **generate-offer** `403` tests; roll-up completion table + completion log. |
 | 2026-04-18 | Bugfix: `POST .../responses` preserves **403** (no longer wrapped as **400**). |
 | 2026-04-18 | Track **2.2 (MVP):** async `start_orchestration` + per-job lock + coalesced re-run; conftest uses `AsyncMock`; integration coalesce test. |
+| 2026-04-18 | **HUMAN / A split:** banner + `V` column; Track **2.3** done (audit test); **2.4** documented as CI `pip-audit` blocking (**H** for severity-only tuning). |

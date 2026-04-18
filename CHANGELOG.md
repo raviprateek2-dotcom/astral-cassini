@@ -6,6 +6,8 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Progress / verification clarity:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) now leads with **HUMAN INPUT REQUIRED**, uses **A** vs **H** (automated vs human) on rows, and explains that **pip-audit** blocking does not replace human severity policy. [PIPELINE-MANUAL-TEST-CHECKLIST.md](docs/PIPELINE-MANUAL-TEST-CHECKLIST.md) warns not to trust pre-checked boxes without a real pass.
+- **API test:** `test_manual_patch_records_state_patch_audit` — admin `PATCH .../state` records **`state_patch`** in workflow `audit_log`.
 - **Orchestration scheduling (Track 2.2 MVP):** `start_orchestration` is **async**, uses a **per-job `asyncio.Lock`**, and **coalesces** a single follow-up run when a trigger arrives while `_run_orchestration_task` is still active (so `resume_workflow` is not lost mid-run). Integration test: `backend/tests/integration/test_orchestration_coalesce.py`.
 - **Track 1 (testing) progress tracker:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) — checklist for deep testing then security hardening.
 - **Playwright (full-stack):** authenticated coverage for **Approvals** (JD gate → approve → empty state) and **Audit** (timeline) in `frontend/e2e/app.authenticated.spec.ts`.
