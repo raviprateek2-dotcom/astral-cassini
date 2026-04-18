@@ -18,6 +18,9 @@ __pycache__/
 !.vscode/settings.json
 .idea/
 
+# Security tooling artifacts (do not commit)
+pip_audit_out.json
+
 # Backend
 backend/.venv/
 backend/venv/
