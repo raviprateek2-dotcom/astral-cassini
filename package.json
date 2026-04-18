@@ -1,0 +1,5 @@
+{
+  "name": "astral-cassini",
+  "private": true,
+  "description": "Monorepo root (npm). Application lives in frontend/ — use cd frontend && npm ci."
+}

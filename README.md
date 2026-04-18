@@ -108,6 +108,8 @@ Backend runs at **<http://localhost:8000>** (API docs: `/docs`)
 
 ### Frontend Setup
 
+The repository root has a minimal **`package.json`** / **`package-lock.json`** so automation that looks for a lockfile at the repo root (for example some GitHub Actions setup steps) can detect **npm**. The Next.js app and its real lockfile remain under **`frontend/`** — always install and run scripts from there.
+
 ```bash
 cd frontend
 cp .env.example .env.local
