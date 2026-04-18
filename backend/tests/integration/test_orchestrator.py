@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from app.models.state import (
     SharedState,
     PipelineStage,
@@ -132,7 +132,7 @@ async def test_resume_workflow_approval(db):
                 shortlist_approval=ApprovalStatus.PENDING.value,
                 candidates=[CandidateProfile(name="Mock candidate")],
             )
-            with patch("app.core.orchestrator.start_orchestration"):
+            with patch("app.core.orchestrator.start_orchestration", new_callable=AsyncMock):
                 await resume_workflow(
                     db,
                     1,

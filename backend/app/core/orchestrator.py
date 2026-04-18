@@ -55,6 +55,26 @@ _outreach_node = create_outreach_agent()
 _response_tracker_node = create_response_tracker()
 _offer_generator_node = create_offer_generator()
 _running_jobs: set[str] = set()
+_pending_orch_rerun: set[str] = set()
+_orch_locks_master: asyncio.Lock | None = None
+_orch_locks: dict[str, asyncio.Lock] = {}
+
+
+def _orch_master_lock() -> asyncio.Lock:
+    global _orch_locks_master
+    if _orch_locks_master is None:
+        _orch_locks_master = asyncio.Lock()
+    return _orch_locks_master
+
+
+async def _per_job_orch_lock(job_id: str) -> asyncio.Lock:
+    """Serialize orchestration scheduling per job (avoids duplicate asyncio tasks)."""
+    async with _orch_master_lock():
+        lock = _orch_locks.get(job_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _orch_locks[job_id] = lock
+        return lock
 
 REQUIRED_JD_SECTIONS = [
     "Role Summary",
@@ -261,8 +281,8 @@ async def start_workflow(
     db.commit()
     
     # 2. Fire and forget graph execution
-    start_orchestration(job_id)
-    
+    await start_orchestration(job_id)
+
     return {
         "job_id": job_id,
         "status": "initializing",
@@ -271,29 +291,49 @@ async def start_workflow(
     }
 
 
-def start_orchestration(job_id: str):
-    """Launch orchestration in background unless already running for this job."""
-    if job_id in _running_jobs:
-        logger.info("orchestration already running for job_id=%s, skipping duplicate trigger", job_id)
-        return False
-    _running_jobs.add(job_id)
+async def start_orchestration(job_id: str) -> bool:
+    """Launch orchestration in background for ``job_id``.
+
+    If a run is already active, queue exactly one follow-up run so ``resume_workflow``
+    updates are not dropped when approvals arrive mid-execution.
+    """
+    jl = await _per_job_orch_lock(job_id)
+    async with jl:
+        if job_id in _running_jobs:
+            _pending_orch_rerun.add(job_id)
+            logger.info(
+                "orchestration already running for job_id=%s; coalesced follow-up scheduled",
+                job_id,
+            )
+            return False
+        _running_jobs.add(job_id)
     asyncio.create_task(_run_orchestration_task(job_id))
     return True
 
 
 async def _run_orchestration_task(job_id: str):
     from app.core.database import SessionLocal
-    with SessionLocal() as db:
-        try:
-            _record_run_metadata(db, job_id, status="running")
-            orchestrator = Orchestrator(db, job_id)
-            await orchestrator.execute()
-            _record_run_metadata(db, job_id, status="completed")
-        except Exception as exc:
-            logger.error("orchestration task failed for job_id=%s", job_id, exc_info=True)
-            _record_run_metadata(db, job_id, status="failed", last_error=str(exc))
-        finally:
+
+    jl = await _per_job_orch_lock(job_id)
+    try:
+        with SessionLocal() as db:
+            try:
+                _record_run_metadata(db, job_id, status="running")
+                orchestrator = Orchestrator(db, job_id)
+                await orchestrator.execute()
+                _record_run_metadata(db, job_id, status="completed")
+            except Exception as exc:
+                logger.error("orchestration task failed for job_id=%s", job_id, exc_info=True)
+                _record_run_metadata(db, job_id, status="failed", last_error=str(exc))
+    finally:
+        pending = False
+        async with jl:
             _running_jobs.discard(job_id)
+            if job_id in _pending_orch_rerun:
+                _pending_orch_rerun.discard(job_id)
+                pending = True
+        if pending:
+            asyncio.create_task(start_orchestration(job_id))
 
 
 async def resume_workflow(
@@ -350,10 +390,10 @@ async def resume_workflow(
              state.current_stage = PipelineStage.DECISION.value
 
     orchestrator._save_state()
-    
+
     # Resume background
-    start_orchestration(job_id)
-    
+    await start_orchestration(job_id)
+
     return orchestrator.state.model_dump(mode='json')
 
 

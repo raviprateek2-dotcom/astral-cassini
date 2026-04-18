@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Orchestration scheduling (Track 2.2 MVP):** `start_orchestration` is **async**, uses a **per-job `asyncio.Lock`**, and **coalesces** a single follow-up run when a trigger arrives while `_run_orchestration_task` is still active (so `resume_workflow` is not lost mid-run). Integration test: `backend/tests/integration/test_orchestration_coalesce.py`.
 - **Track 1 (testing) progress tracker:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) — checklist for deep testing then security hardening.
 - **Playwright (full-stack):** authenticated coverage for **Approvals** (JD gate → approve → empty state) and **Audit** (timeline) in `frontend/e2e/app.authenticated.spec.ts`.
 - **API regression:** `backend/tests/api/test_job_access_isolation.py` — non-owner `hr_manager` receives `403` on another user’s job, **all workflow GET/POST/PATCH routes** covered in-file (incl. patch state, interview flows, responses, generate-offer), and **candidates**; admin can read any job.
@@ -16,6 +17,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- **Orchestration:** `start_orchestration` is now **async** (`await` from `start_workflow` / `resume_workflow`). Test suite mocks it with **`AsyncMock`** (`conftest.py`).
 - **API correctness:** `POST /api/workflow/{job_id}/responses` now re-raises **`HTTPException`** (e.g. **403** job access denied) instead of wrapping it as **400**.
 - **Playwright full-stack:** backend webServer uses **`py -3.11`** on Windows (instead of `python`) so local runs match CI Python 3.11; set **`PLAYWRIGHT_BACKEND_PYTHON`** to override the interpreter used for uvicorn. Default **`DATABASE_URL`** for the spawned API uses the OS temp dir (override with **`E2E_DATABASE_URL`**) so SQLite under synced folders (e.g. OneDrive) does not hang Alembic during startup.
 - **API stability:** HTTP middleware returns **`{"detail": "Internal server error"}`** JSON on unhandled exceptions (still re-raises **`HTTPException`** / **`RequestValidationError`** for normal 4xx/422 behavior).

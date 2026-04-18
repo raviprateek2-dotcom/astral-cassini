@@ -12,8 +12,8 @@ Single source of truth for the **Track 1 then Track 2** program. Update this fil
 | Slice | Progress | Notes |
 |-------|----------|--------|
 | **Track 1** — Deep testing | **4 / 8 steps (50%)** | Automated paths done; **manual + WS** (1.3–1.6) still drive release confidence. |
-| **Track 2** — Security / hardening | **1 / 8 items (12.5%)** | **2.1 Done** — job/workflow API isolation tests for current routes; **2.2–2.8** not started. |
-| **Program (indicative)** | **~28%** | `0.4 × 50% + 0.6 × 12.5%` ≈ **27.5%** (Track 1 weight 40%, Track 2 weight 60%). *Dashboard only — manual Track 1 gates matter more than this number.* |
+| **Track 2** — Security / hardening | **2 / 8 items (25%)** | **2.1 Done** (API isolation). **2.2 Done (MVP)** — per-job asyncio lock + coalesced follow-up run if `start_orchestration` is called while a task is active; see `test_orchestration_coalesce.py`. *Not* multi-worker safe; optional follow-up: reload state from DB each orchestrator loop. |
+| **Program (indicative)** | **~35%** | `0.4 × 50% + 0.6 × 25%` ≈ **35%** (Track 1 weight 40%, Track 2 weight 60%). *Dashboard only — manual Track 1 gates matter more than this number.* |
 
 Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
@@ -36,6 +36,7 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
 - `frontend/e2e/app.authenticated.spec.ts` — Approvals + Audit pages (stubbed API, full-stack project).
 - `backend/tests/api/test_job_access_isolation.py` — non-owner `hr_manager` cannot read or mutate another user’s job / workflow / candidates (`403`).
+- `backend/tests/integration/test_orchestration_coalesce.py` — concurrent `start_orchestration` coalesces a follow-up run.
 
 ---
 
@@ -53,7 +54,7 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 | Order | Item | Status |
 |-------|------|--------|
 | 2.1 | Job-level auth policy + negative tests | **Done** | `test_job_access_isolation.py`: `GET /api/jobs/{id}`; admin read-all; workflow **GET** (status, audit, interviews, recommendations); **approve / reject / patch state / interview-invite / interview-complete / responses / generate-offer**; **GET candidates** — all **403** for non-owner `hr_manager`. |
-| 2.2 | Orchestration idempotency / durability | Not started | |
+| 2.2 | Orchestration idempotency / durability | **Done (MVP)** | `start_orchestration` is **async** with per-job lock; overlapping triggers coalesce to one chained run. Tests: `tests/integration/test_orchestration_coalesce.py`. **Follow-ups:** multi-worker lock (Redis/SQL advisory); reload job state at each orchestrator loop for long-lived consistency. |
 | 2.3 | Restrict workflow `PATCH` state surface | Not started | Allowlist + admin-only already in code; verify audit + tests vs checklist. |
 | 2.4 | CI blocks high/critical dependency issues | Not started | |
 | 2.5 | CSRF for cookie-auth mutations | Not started | |
@@ -73,3 +74,4 @@ See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) f
 | 2026-04-18 | Track 2.1: workflow GET + approve/reject + candidates `403` tests; `verify-frontend.ps1` uses `py -3.11`; `verify-all.ps1` green. |
 | 2026-04-18 | Track 2.1: workflow **PATCH state**, **interview-invite**, **interview-complete**, **responses**, **generate-offer** `403` tests; roll-up completion table + completion log. |
 | 2026-04-18 | Bugfix: `POST .../responses` preserves **403** (no longer wrapped as **400**). |
+| 2026-04-18 | Track **2.2 (MVP):** async `start_orchestration` + per-job lock + coalesced re-run; conftest uses `AsyncMock`; integration coalesce test. |

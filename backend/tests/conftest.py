@@ -1,21 +1,29 @@
 import os
 import tempfile
 from typing import Generator
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from fastapi.testclient import TestClient
 
+import app.core.orchestrator as orch_mod
+
+# Patch before importing app routers so call sites resolve mocked ``await start_orchestration``.
+_orch_start_patcher = patch.object(
+    orch_mod,
+    "start_orchestration",
+    AsyncMock(return_value=True),
+)
+_orch_start_patcher.start()
+orch_mod._orch_start_patcher_for_tests = _orch_start_patcher
+
 from app.main import app
 from app.core import database
 from app.core.database import Base, get_db
 from app.models.state import SharedState
 from app.config import settings
-
-# Patch orchestrator to avoid background tasks firing automatically in tests
-patch("app.core.orchestrator.start_orchestration").start()
 
 # Test Database Setup — temporary file DB for isolation and multi-connection support
 _db_fd, db_path = tempfile.mkstemp()
