@@ -116,6 +116,9 @@ The root **`package.json`** / **`package-lock.json`** are minimal so CI and othe
 2. Open **Project → Settings → Build and Deployment → Root Directory** → **Edit** → set to **`frontend`** → **Save**.  
    This makes Vercel read **`frontend/package.json`**, so **Next.js is detected** and default install/build (`npm ci`, `next build`) run in the right folder.
 3. Add env vars (see **`frontend/.env.example`**) such as **`NEXT_PUBLIC_API_URL`** for your deployed API.
+4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
+
+**Other deploy paths:** run **`docker compose up --build`** for a full stack on your own host (see **Docker Compose** below). A sample **GitHub Pages** workflow was removed: this app uses **Next.js rewrites** and is not built as a static **`out/`** export, so Pages is not a drop-in target without substantial changes.
 
 ```bash
 cd frontend

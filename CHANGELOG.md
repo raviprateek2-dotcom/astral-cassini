@@ -34,5 +34,6 @@ All notable changes to this project are documented here.
 
 ### Removed
 
+- **GitHub Pages sample workflow** (`.github/workflows/nextjs.yml`): the app is not configured for static **`output: 'export'`** and relies on **Next rewrites**; use **Vercel** (Root Directory **`frontend`**) or **Docker Compose** instead. README deploy notes updated.
 - **`chroma_persist_dir`** removed from `app.config.Settings`. RAG uses **FAISS** only (`app/rag/embeddings.py`). If you had `CHROMA_PERSIST_DIR` in `.env`, it is now ignored (harmless).
 
