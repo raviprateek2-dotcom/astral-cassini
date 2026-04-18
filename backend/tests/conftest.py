@@ -1,6 +1,3 @@
-# ruff: noqa: E402
-# ``app`` imports are intentionally placed after the ``start_orchestration`` patch (see below).
-
 import os
 import tempfile
 from typing import Generator
@@ -22,12 +19,29 @@ _orch_start_patcher = patch.object(
 _orch_start_patcher.start()
 orch_mod._orch_start_patcher_for_tests = _orch_start_patcher
 
-# Imports must follow the patch above so ``app`` resolves mocked ``start_orchestration``.
-from app.main import app
-from app.core import database
-from app.core.database import Base, get_db
-from app.models.state import SharedState
-from app.config import settings
+
+def _load_app_after_orch_patch() -> None:
+    """Bind ``app`` and related symbols only after the orchestration mock is active.
+
+    Module-level ``from app…`` after executable code triggers Ruff E402; imports inside
+    this function do not.
+    """
+    global app, database, Base, get_db, SharedState, settings
+    from app.config import settings as _settings
+    from app.core import database as _database
+    from app.core.database import Base as _Base, get_db as _get_db
+    from app.main import app as _app
+    from app.models.state import SharedState as _SharedState
+
+    app = _app
+    database = _database
+    Base = _Base
+    get_db = _get_db
+    SharedState = _SharedState
+    settings = _settings
+
+
+_load_app_after_orch_patch()
 
 # Test Database Setup — temporary file DB for isolation and multi-connection support
 _db_fd, db_path = tempfile.mkstemp()
