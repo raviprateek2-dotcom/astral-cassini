@@ -38,7 +38,7 @@ Single source of truth for the **Track 1 then Track 2** program. Update this fil
 
 | Order | Item | Status |
 |-------|------|--------|
-| 2.1 | Job-level auth policy + negative tests (extend as needed) | In progress | `GET /api/jobs/{id}` covered: non-owner `hr_manager` → 403; admin → 200 (`test_job_access_isolation.py`). Extend to workflow/candidates routes next. |
+| 2.1 | Job-level auth policy + negative tests (extend as needed) | In progress | `test_job_access_isolation.py`: `GET /api/jobs/{id}`; admin read-all; **workflow GETs** (status, audit, interviews, recommendations); **approve/reject**; **GET candidates** — all **403** for non-owner `hr_manager`. Further routes (patch state, invites, …) as needed. |
 | 2.2 | Orchestration idempotency / durability | Not started |
 | 2.3 | Restrict workflow `PATCH` state surface | Not started |
 | 2.4 | CI blocks high/critical dependency issues | Not started |

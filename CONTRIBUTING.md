@@ -7,6 +7,7 @@
 3. Run local verification before opening a PR:
    - `bash scripts/verify-backend.sh`
    - `bash scripts/verify-frontend.sh`
+   - Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1` (uses **`py -3.11`** for backend steps, including the E2E deps install in `verify-frontend.ps1`).
 4. Open PR with:
    - summary of why the change is needed
    - test plan

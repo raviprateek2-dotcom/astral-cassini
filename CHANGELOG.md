@@ -8,7 +8,8 @@ All notable changes to this project are documented here.
 
 - **Track 1 (testing) progress tracker:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) — checklist for deep testing then security hardening.
 - **Playwright (full-stack):** authenticated coverage for **Approvals** (JD gate → approve → empty state) and **Audit** (timeline) in `frontend/e2e/app.authenticated.spec.ts`.
-- **API regression:** `backend/tests/api/test_job_access_isolation.py` — non-owner `hr_manager` receives `403` on another user’s job; admin can read any job.
+- **API regression:** `backend/tests/api/test_job_access_isolation.py` — non-owner `hr_manager` receives `403` on another user’s job, **workflow read/mutate**, and **candidates**; admin can read any job.
+- **Windows scripts:** `scripts/verify-frontend.ps1` installs backend E2E deps with **`py -3.11`** (same as `verify-backend.ps1`), not unversioned `python`.
 - **Release safety toolkit:** added [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) and CI non-blocking security audit jobs (backend-security-audit, frontend-security-audit) plus README release-process guidance.
 - **WebSocket auth hardening (Phase C):** **`GET /api/auth/ws-ticket`** mints a short-lived JWT (`aud=prohr-ws`, bound to `job_id`) for **`/ws/{job_id}?token=`**. Frontend fetches a ticket before connect/reconnect. Settings: **`ws_ticket_expire_minutes`**, **`ws_allow_legacy_browser_token`** (env: `WS_TICKET_EXPIRE_MINUTES`, `WS_ALLOW_LEGACY_BROWSER_TOKEN`).
 - **`.python-version`** (3.11) and **`backend/mypy-full.ini`** â€” align local interpreters with CI/Docker; optional full-app **`mypy`** config for the non-blocking CI report job.
