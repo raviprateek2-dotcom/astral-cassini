@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -81,7 +82,18 @@ async def upload_resume(
     if file_ext.lower() == ".pdf":
         if not content.startswith(b"%PDF"):
             raise HTTPException(status_code=400, detail="Invalid PDF file signature")
-        parsed = parse_resume_pdf(str(file_path))
+        try:
+            parsed = await asyncio.wait_for(
+                asyncio.to_thread(parse_resume_pdf, str(file_path)),
+                timeout=settings.resume_parse_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            if file_path.exists():
+                file_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=504,
+                detail="Resume parsing timed out; try a smaller PDF or contact support.",
+            )
     else:
         text_content = content.decode("utf-8", errors="ignore")
         parsed = parse_resume_text(text_content)

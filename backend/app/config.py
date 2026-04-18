@@ -101,6 +101,11 @@ class Settings(BaseSettings):
         ge=1,
         description="Maximum accepted resume upload size in bytes.",
     )
+    resume_parse_timeout_seconds: float = Field(
+        default=45.0,
+        ge=1.0,
+        description="Wall-clock cap for synchronous PDF parsing (thread offload).",
+    )
 
     @model_validator(mode="after")
     def cookie_none_requires_secure(self) -> "Settings":

@@ -2,7 +2,7 @@
 
 Single source of truth for the **Track 1 then Track 2** program. Update this file as steps complete.
 
-**Last updated:** 2026-04-18  
+**Last updated:** 2026-04-10  
 **Baseline:** use `git rev-parse HEAD` on `master` when you record a testing snapshot (do not rely on a stale SHA printed in this file).
 
 ---
@@ -33,8 +33,8 @@ Single source of truth for the **Track 1 then Track 2** program. Update this fil
 | Slice | Progress | Verification | Notes |
 |-------|----------|--------------|--------|
 | **Track 1** — Deep testing | **4 / 8 steps (50%)** | Mixed **A** + **H** | Automated slices done; **H** steps 1.3–1.6 **open** until a human checks boxes. |
-| **Track 2** — Security / hardening | **4 / 8 items (50%)** | Mostly **A** | **2.1–2.4** marked done with automated tests/CI; **2.5–2.8** need code and/or **H** sign-off. |
-| **Program (indicative, automated only)** | **~50%** | **A** | `0.4 × (4/8) + 0.6 × (4/8)` ≈ **50%** for **A**-verifiable rows only — **do not** treat as product-ready while **H** rows are open. |
+| **Track 2** — Security / hardening | **7 / 8 items (88%)** | Mostly **A** | **2.1–2.7** done for **A** scope; **2.8** remains **H** (release sign-off). |
+| **Program (indicative, automated only)** | **~65%** | **A** | `0.4 × (4/8) + 0.6 × (7/8)` ≈ **65%** for **A**-verifiable rows only — **do not** treat as product-ready while **H** rows are open. |
 
 Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 
@@ -56,6 +56,8 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 ### Automated coverage added (Track 1)
 
 - `frontend/e2e/app.authenticated.spec.ts` — Approvals + Audit pages (stubbed API, full-stack project).
+- `frontend/e2e/smoke.spec.ts` — middleware redirect for unauthenticated **`/jobs`** (`next` query).
+- `backend/tests/api/test_api.py` — CSRF on **PATCH**; job resume MIME + parse-timeout (**504**).
 - `backend/tests/api/test_job_access_isolation.py` — non-owner `hr_manager` cannot read or mutate another user’s job / workflow / candidates (`403`).
 - `backend/tests/integration/test_orchestration_coalesce.py` — concurrent `start_orchestration` coalesces a follow-up run.
 
@@ -78,9 +80,9 @@ Re-open **2.1** if new job-scoped routes ship without matching isolation tests.
 | 2.2 | Orchestration idempotency / durability | **Done (MVP)** | A | Async `start_orchestration` + per-job lock + coalesced follow-up; `test_orchestration_coalesce.py`. **H:** multi-worker / prod SRE review if scaled. |
 | 2.3 | Restrict workflow `PATCH` state surface | **Done** | A | Admin-only, production disabled, allowlist; `test_manual_patch_*` + `test_manual_patch_records_state_patch_audit`. **H:** periodic review of allowlist keys. |
 | 2.4 | CI blocks dependency issues | **Done (as shipped)** | A | Workflow job **`backend-security-audit`** runs **`pip-audit`** and **fails on any reported vuln** (see `.github/workflows/ci.yml`). **H:** pip-audit JSON has no CVSS tier — if you need **high/critical-only**, a human must add filtering or ignore rules. |
-| 2.5 | CSRF for cookie-auth mutations | Partial | A+H | API tests exist (`test_cookie_auth_mutation_requires_csrf_header`); **H:** full UI regression. |
-| 2.6 | Upload limits / parser hardening | Partial | A | Oversize test exists; **H:** abuse cases in staging. |
-| 2.7 | Frontend route guards | Not started | A+H | |
+| 2.5 | CSRF for cookie-auth mutations | **Done** | A+H | Axios sends `x-csrf-token` on mutations; API tests for **POST** logout + **PATCH** workflow (`test_cookie_auth_*`). **H:** full UI regression. |
+| 2.6 | Upload limits / parser hardening | **Done** | A+H | Oversize + **MIME** (`application/pdf` only on job upload) + **parse timeout** (`resume_parse_timeout_seconds`, **504**); tests in `test_api.py`. **H:** abuse cases in staging. |
+| 2.7 | Frontend route guards | **Done** | A+H | `middleware.ts` redirects unauthenticated users; `useAuth` blocks protected UI until session resolves; Playwright: direct `/jobs` → `/?next=`. **H:** spot-check other deep links. |
 | 2.8 | Release checklist sign-off | Not started | **H** | [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) |
 
 See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) for acceptance criteria.
@@ -97,3 +99,4 @@ See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) f
 | 2026-04-18 | Bugfix: `POST .../responses` preserves **403** (no longer wrapped as **400**). |
 | 2026-04-18 | Track **2.2 (MVP):** async `start_orchestration` + per-job lock + coalesced re-run; conftest uses `AsyncMock`; integration coalesce test. |
 | 2026-04-18 | **HUMAN / A split:** banner + `V` column; Track **2.3** done (audit test); **2.4** documented as CI `pip-audit` blocking (**H** for severity-only tuning). |
+| 2026-04-10 | Track **2.5–2.7:** CSRF PATCH test; job PDF MIME + parse timeout; `useAuth` protected shell gate; Playwright route-guard smoke. |

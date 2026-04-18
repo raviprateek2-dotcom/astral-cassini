@@ -569,6 +569,24 @@ async def test_cookie_auth_mutation_requires_csrf_header(client):
 
 
 @pytest.mark.asyncio
+async def test_cookie_auth_patch_requires_csrf_header(client):
+    """Cookie-authenticated PATCH must provide matching CSRF header (same middleware as POST)."""
+    client.cookies.set("access_token", "dummy-session-token")
+    client.cookies.set("csrf_token", "csrf-abc")
+
+    denied = client.patch("/api/workflow/not-a-real-job/state", json={"action": "manual_patch"})
+    assert denied.status_code == status.HTTP_403_FORBIDDEN
+    assert "CSRF" in str(denied.json().get("detail", ""))
+
+    allowed = client.patch(
+        "/api/workflow/not-a-real-job/state",
+        json={"action": "manual_patch"},
+        headers={"x-csrf-token": "csrf-abc"},
+    )
+    assert allowed.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
 async def test_resume_upload_rejects_oversized_file(client, monkeypatch):
     """Resume upload rejects files beyond configured max size."""
     from app.core.auth import get_current_user
@@ -586,3 +604,113 @@ async def test_resume_upload_rejects_oversized_file(client, monkeypatch):
     response = client.post("/api/resumes/upload", files=files, headers={"x-csrf-token": "t"})
     assert response.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     app.dependency_overrides.pop(get_current_user)
+
+
+def _job_to_sourcing(db, job_id: str) -> None:
+    from app.models.db_models import Job
+
+    job = db.query(Job).filter(Job.job_id == job_id).first()
+    assert job is not None
+    job.current_stage = "sourcing"
+    ws = dict(job.workflow_state) if isinstance(job.workflow_state, dict) else {}
+    ws["current_stage"] = "sourcing"
+    ws.setdefault("candidates", [])
+    job.workflow_state = ws
+    db.commit()
+
+
+@pytest.mark.asyncio
+async def test_job_resume_upload_rejects_non_pdf_content_type(client, db):
+    """Job-scoped resume upload accepts only application/pdf (not generic octet-stream)."""
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="hr@prohr.ai", role="hr_manager", is_active=True
+    )
+    created = await start_workflow(db, 1, "MIME Gate", "QA", ["Python"])
+    job_id = created["job_id"]
+    _job_to_sourcing(db, job_id)
+
+    files = {"file": ("r.pdf", b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n", "text/plain")}
+    r = client.post(
+        f"/api/jobs/{job_id}/resumes",
+        files=files,
+        headers={"x-csrf-token": "csrf-job"},
+    )
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_job_resume_upload_rejects_octet_stream_content_type(client, db):
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="hr@prohr.ai", role="hr_manager", is_active=True
+    )
+    created = await start_workflow(db, 1, "Octet Job", "QA", ["Go"])
+    job_id = created["job_id"]
+    _job_to_sourcing(db, job_id)
+
+    files = {"file": ("r.pdf", b"%PDF-1.4\n", "application/octet-stream")}
+    r = client.post(
+        f"/api/jobs/{job_id}/resumes",
+        files=files,
+        headers={"x-csrf-token": "csrf-job"},
+    )
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_job_resume_upload_parse_timeout(client, db, monkeypatch):
+    """PDF parsing is capped so a pathological file cannot hang the worker indefinitely."""
+    import time
+    from unittest.mock import AsyncMock, patch
+
+    from app.core.auth import get_current_user
+    from app.models.db_models import User
+    from app.core.orchestrator import start_workflow
+    from app.config import settings
+
+    def slow_pdf(_path: str):
+        time.sleep(1.0)
+        return {
+            "name": "X",
+            "email": "",
+            "skills": [],
+            "experience_years": 0,
+            "sections": {},
+            "resume_text": "",
+            "chunks": [],
+        }
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=1, email="hr@prohr.ai", role="hr_manager", is_active=True
+    )
+    monkeypatch.setattr(settings, "resume_parse_timeout_seconds", 0.05)
+
+    created = await start_workflow(db, 1, "Parse Timeout Job", "QA", ["Rust"])
+    job_id = created["job_id"]
+    _job_to_sourcing(db, job_id)
+
+    tiny_pdf = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+
+    with (
+        patch("app.api.jobs.parse_resume_pdf", side_effect=slow_pdf),
+        patch("app.api.jobs.index_resume"),
+        patch("app.api.jobs.resume_workflow", new_callable=AsyncMock) as rw,
+    ):
+        rw.return_value = {"current_stage": "sourcing"}
+        r = client.post(
+            f"/api/jobs/{job_id}/resumes",
+            files={"file": ("r.pdf", tiny_pdf, "application/pdf")},
+            headers={"x-csrf-token": "csrf-job"},
+        )
+
+    assert r.status_code == status.HTTP_504_GATEWAY_TIMEOUT
+    app.dependency_overrides.pop(get_current_user, None)

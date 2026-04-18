@@ -51,9 +51,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace("/");
     };
 
+    const isPublicRoute = pathname === "/" || pathname === "/login";
+    const blockProtectedShell =
+        !isPublicRoute && (loading || !user);
+
     return (
         <AuthContext.Provider value={{ user, loading, logout }}>
-            {children}
+            {blockProtectedShell ? (
+                <div
+                    role="status"
+                    aria-busy="true"
+                    aria-label="Loading session"
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(15, 23, 42, 0.92)",
+                        color: "rgba(226, 232, 240, 0.85)",
+                        fontSize: "0.95rem",
+                        zIndex: 50,
+                    }}
+                >
+                    Loading session…
+                </div>
+            ) : (
+                children
+            )}
         </AuthContext.Provider>
     );
 }

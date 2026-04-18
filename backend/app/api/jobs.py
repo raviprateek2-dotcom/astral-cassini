@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 import tempfile
@@ -139,8 +140,8 @@ async def upload_resume(
     filename = file.filename or ""
     if not filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
-    if file.content_type not in {"application/pdf", "application/octet-stream"}:
-        raise HTTPException(status_code=400, detail="Invalid content type for PDF upload")
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Content-Type must be application/pdf")
         
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         try:
@@ -161,7 +162,16 @@ async def upload_resume(
 
     # 2. Parse and index
     try:
-        parsed = parse_resume_pdf(tmp_path)
+        try:
+            parsed = await asyncio.wait_for(
+                asyncio.to_thread(parse_resume_pdf, tmp_path),
+                timeout=settings.resume_parse_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504,
+                detail="Resume parsing timed out; try a smaller PDF or contact support.",
+            )
         # Give candidate a unique ID for this job
         candidate_id = f"c_{uuid.uuid4().hex[:8]}"
         parsed["id"] = candidate_id
@@ -171,7 +181,9 @@ async def upload_resume(
         
         # Index into vector database
         index_resume(parsed)
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process resume: {e}")
     finally:

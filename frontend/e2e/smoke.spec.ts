@@ -17,4 +17,12 @@ test.describe("smoke", () => {
         await page.goto("/login");
         await expect(page).toHaveURL(/\/login$/);
     });
+
+    test("protected route redirects before app shell without session cookie", async ({ page, context }) => {
+        await context.clearCookies();
+        await page.goto("/jobs");
+        await expect(page).toHaveURL(/\/\?next=/);
+        const u = new URL(page.url());
+        expect(u.searchParams.get("next")).toBeTruthy();
+    });
 });

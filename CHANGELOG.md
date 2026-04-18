@@ -6,6 +6,9 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Upload / parser safety:** `Settings.resume_parse_timeout_seconds` (default **45s**); job and deprecated resume uploads run PDF parsing in **`asyncio.to_thread`** with **`asyncio.wait_for`** — timeout returns **504**. Job route **`POST /api/jobs/{job_id}/resumes`** requires **`Content-Type: application/pdf`** (no `application/octet-stream`). Tests: MIME rejection, octet-stream rejection, parse-timeout path.
+- **Route guard UX:** `AuthProvider` shows a full-screen loading state on protected routes until `/api/auth/me` completes, so dashboard chrome does not flash under a stale cookie before redirect.
+- **E2E:** smoke test asserts unauthenticated navigation to **`/jobs`** is redirected to **`/?next=...`** (Next middleware).
 - **Progress / verification clarity:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) now leads with **HUMAN INPUT REQUIRED**, uses **A** vs **H** (automated vs human) on rows, and explains that **pip-audit** blocking does not replace human severity policy. [PIPELINE-MANUAL-TEST-CHECKLIST.md](docs/PIPELINE-MANUAL-TEST-CHECKLIST.md) warns not to trust pre-checked boxes without a real pass.
 - **API test:** `test_manual_patch_records_state_patch_audit` — admin `PATCH .../state` records **`state_patch`** in workflow `audit_log`.
 - **Orchestration scheduling (Track 2.2 MVP):** `start_orchestration` is **async**, uses a **per-job `asyncio.Lock`**, and **coalesces** a single follow-up run when a trigger arrives while `_run_orchestration_task` is still active (so `resume_workflow` is not lost mid-run). Integration test: `backend/tests/integration/test_orchestration_coalesce.py`.
@@ -19,6 +22,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- **Job resume upload:** **`Content-Type`** must be **`application/pdf`** (removed `application/octet-stream` for this route so MIME cannot bypass PDF checks).
 - **Orchestration:** `start_orchestration` is now **async** (`await` from `start_workflow` / `resume_workflow`). Test suite mocks it with **`AsyncMock`** (`conftest.py`).
 - **API correctness:** `POST /api/workflow/{job_id}/responses` now re-raises **`HTTPException`** (e.g. **403** job access denied) instead of wrapping it as **400**.
 - **Playwright full-stack:** backend webServer uses **`py -3.11`** on Windows (instead of `python`) so local runs match CI Python 3.11; set **`PLAYWRIGHT_BACKEND_PYTHON`** to override the interpreter used for uvicorn. Default **`DATABASE_URL`** for the spawned API uses the OS temp dir (override with **`E2E_DATABASE_URL`**) so SQLite under synced folders (e.g. OneDrive) does not hang Alembic during startup.
