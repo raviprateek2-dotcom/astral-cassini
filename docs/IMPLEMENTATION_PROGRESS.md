@@ -3,7 +3,7 @@
 Single source of truth for the **Track 1 then Track 2** program. Update this file as steps complete.
 
 **Last updated:** 2026-04-18  
-**Baseline SHA (Track 1 wave):** `2b29c92` — refresh with `git rev-parse HEAD` on `master` after each merge.
+**Baseline:** use `git rev-parse HEAD` on `master` when you record a testing snapshot (do not rely on a stale SHA printed in this file).
 
 ---
 
