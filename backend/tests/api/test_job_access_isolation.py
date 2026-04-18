@@ -138,5 +138,39 @@ async def test_workflow_and_candidates_forbidden_for_other_hr_manager(client, db
         assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
         res = client.post(f"/api/workflow/{job_id}/reject", json={"feedback": "go away"})
         assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
+        res = client.patch(
+            f"/api/workflow/{job_id}/state",
+            json={
+                "action": "manual_patch",
+                "reason": "test",
+                "state_updates": {"current_stage": "jd_drafting"},
+            },
+        )
+        assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
+        res = client.post(
+            f"/api/workflow/{job_id}/interview-invite",
+            json={
+                "candidate_name": "X",
+                "to_email": "x@example.com",
+                "meeting_link": "https://meet.example/room",
+            },
+        )
+        assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
+        res = client.post(
+            f"/api/workflow/{job_id}/interview-complete",
+            json={
+                "candidate_id": "c1",
+                "candidate_name": "X",
+                "selected": False,
+            },
+        )
+        assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
+        res = client.post(
+            f"/api/workflow/{job_id}/responses",
+            json={"candidate_id": "c1", "candidate_name": "X", "response": "ok"},
+        )
+        assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
+        res = client.post(f"/api/workflow/{job_id}/generate-offer")
+        assert res.status_code == status.HTTP_403_FORBIDDEN, res.text
     finally:
         app.dependency_overrides.pop(get_current_user, None)

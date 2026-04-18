@@ -333,6 +333,8 @@ async def capture_response(
             candidate_name=req.candidate_name,
             response_text=req.response,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
