@@ -3,7 +3,11 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, master]
+    # Include agent/cursor branches so pushes verify the same tree as the PR head (not only main/master).
+    branches:
+      - main
+      - master
+      - "cursor/**"
   workflow_dispatch:
 
 # Parallel backend + frontend (scripts/verify-*.sh); informational audits. Gate job: verify.
