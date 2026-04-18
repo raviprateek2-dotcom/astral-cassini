@@ -3,7 +3,7 @@
 Single source of truth for the **Track 1 then Track 2** program. Update this file as steps complete.
 
 **Last updated:** 2026-04-18  
-**Baseline SHA (Track 1 wave):** `9985132` — run `git rev-parse HEAD` after your next merge to refresh.
+**Baseline SHA (Track 1 wave):** `ade9411` — run `git rev-parse HEAD` after your next merge to refresh.
 
 ---
 
