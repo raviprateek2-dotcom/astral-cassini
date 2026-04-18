@@ -19,11 +19,12 @@ _orch_start_patcher = patch.object(
 _orch_start_patcher.start()
 orch_mod._orch_start_patcher_for_tests = _orch_start_patcher
 
-from app.main import app
-from app.core import database
-from app.core.database import Base, get_db
-from app.models.state import SharedState
-from app.config import settings
+# Imports must follow the patch above so ``app`` resolves mocked ``start_orchestration``.
+from app.main import app  # noqa: E402
+from app.core import database  # noqa: E402
+from app.core.database import Base, get_db  # noqa: E402
+from app.models.state import SharedState  # noqa: E402
+from app.config import settings  # noqa: E402
 
 # Test Database Setup — temporary file DB for isolation and multi-connection support
 _db_fd, db_path = tempfile.mkstemp()

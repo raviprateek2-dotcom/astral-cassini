@@ -93,7 +93,7 @@ jobs:
           pip install -r requirements.txt
           pip install pip-audit
       - name: pip-audit (blocking)
-        run: python -m pip_audit
+        run: python -m pip_audit -r requirements.txt
 
   # npm high/critical gate runs inside scripts/verify-frontend.sh (frontend job) so there is
   # a single audit path. A separate job named "npm audit (high/critical)" is a common stale

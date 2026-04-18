@@ -22,6 +22,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- **Frontend:** **`package.json` `overrides`** pin transitive **`follow-redirects`** to **1.16.0** (GHSA-r4q5-vmmm-2653; npm had no **1.15.12** release). **`package-lock.json`** updated so **`npm audit`** is clean and **`npm-audit-gate`** passes without relying on severity-only skips.
 - **CI:** Ruff ignores **`E402`** in **`tests/conftest.py`** (imports after orchestration patch). **`npm-audit-gate`** only treats **high/critical** findings as failures, matching **`npm audit --audit-level=high`**. Dependency bumps for **`pip-audit`:** `langchain-openai` **1.1.14**, `python-multipart` **0.0.26**, `pytest` **9.0.3**, `pytest-asyncio` **1.3.0**.
 - **Job resume upload:** **`Content-Type`** must be **`application/pdf`** (removed `application/octet-stream` for this route so MIME cannot bypass PDF checks).
 - **Orchestration:** `start_orchestration` is now **async** (`await` from `start_workflow` / `resume_workflow`). Test suite mocks it with **`AsyncMock`** (`conftest.py`).
