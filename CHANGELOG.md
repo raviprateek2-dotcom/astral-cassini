@@ -7,7 +7,7 @@ All notable changes to this project are documented here.
 ### Added
 
 - **Upload / parser safety:** `Settings.resume_parse_timeout_seconds` (default **45s**); job and deprecated resume uploads run PDF parsing in **`asyncio.to_thread`** with **`asyncio.wait_for`** — timeout returns **504**. Job route **`POST /api/jobs/{job_id}/resumes`** requires **`Content-Type: application/pdf`** (no `application/octet-stream`). Tests: MIME rejection, octet-stream rejection, parse-timeout path.
-- **Route guard UX:** `AuthProvider` shows a full-screen loading state on protected routes until `/api/auth/me` completes, so dashboard chrome does not flash under a stale cookie before redirect.
+- **Route guard UX:** `AuthProvider` shows a full-screen loading state on protected routes only while **`/api/auth/me`** is in flight (avoids blank deadlock if `/me` fails; middleware still handles missing cookie).
 - **E2E:** smoke test asserts unauthenticated navigation to **`/jobs`** is redirected to **`/?next=...`** (Next middleware).
 - **Progress / verification clarity:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) now leads with **HUMAN INPUT REQUIRED**, uses **A** vs **H** (automated vs human) on rows, and explains that **pip-audit** blocking does not replace human severity policy. [PIPELINE-MANUAL-TEST-CHECKLIST.md](docs/PIPELINE-MANUAL-TEST-CHECKLIST.md) warns not to trust pre-checked boxes without a real pass.
 - **API test:** `test_manual_patch_records_state_patch_audit` — admin `PATCH .../state` records **`state_patch`** in workflow `audit_log`.
@@ -22,6 +22,7 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- **CI:** Ruff ignores **`E402`** in **`tests/conftest.py`** (imports after orchestration patch). **`npm-audit-gate`** only treats **high/critical** findings as failures, matching **`npm audit --audit-level=high`**. Dependency bumps for **`pip-audit`:** `langchain-openai` **1.1.14**, `python-multipart` **0.0.26**, `pytest` **9.0.3**, `pytest-asyncio` **1.3.0**.
 - **Job resume upload:** **`Content-Type`** must be **`application/pdf`** (removed `application/octet-stream` for this route so MIME cannot bypass PDF checks).
 - **Orchestration:** `start_orchestration` is now **async** (`await` from `start_workflow` / `resume_workflow`). Test suite mocks it with **`AsyncMock`** (`conftest.py`).
 - **API correctness:** `POST /api/workflow/{job_id}/responses` now re-raises **`HTTPException`** (e.g. **403** job access denied) instead of wrapping it as **400**.

@@ -110,6 +110,10 @@ function allAxiosNextPatched(names) {
 
 for (const key of keys) {
   const v = vulns[key];
+  const severity = (v && v.severity) || "";
+  if (severity !== "high" && severity !== "critical") {
+    continue;
+  }
   const names = relatedPackageNames(v);
   if (onlyAxiosNext(names) && allAxiosNextPatched(names)) {
     ignored.push(`${key}: ${[...names].join(",")} @ installed axios=${axInst} next=${nxInst}`);

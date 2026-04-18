@@ -52,8 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const isPublicRoute = pathname === "/" || pathname === "/login";
-    const blockProtectedShell =
-        !isPublicRoute && (loading || !user);
+    // Block only while `/me` is in flight — not for `user === null` after failure (redirect must run; shell would deadlock).
+    const blockProtectedShell = !isPublicRoute && loading;
 
     return (
         <AuthContext.Provider value={{ user, loading, logout }}>
