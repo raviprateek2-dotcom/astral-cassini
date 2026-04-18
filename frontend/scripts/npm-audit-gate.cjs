@@ -50,6 +50,20 @@ function readInstalled(pkg) {
   return JSON.parse(fs.readFileSync(p, "utf8")).version;
 }
 
+/** Prefer on-disk install; fall back to lockfile (npm may not hoist transitive deps to top-level). */
+function readFollowRedirectsVersion() {
+  const fromModules = readInstalled("follow-redirects");
+  if (fromModules) return fromModules;
+  const lockPath = path.join(root, "package-lock.json");
+  if (!fs.existsSync(lockPath)) return null;
+  try {
+    const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+    return lock.packages?.["node_modules/follow-redirects"]?.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function runNpmAuditJson() {
   const r = spawnSync("npm", ["audit", "--audit-level=high", "--json"], {
     encoding: "utf8",
@@ -78,7 +92,7 @@ if (keys.length === 0) {
 
 const axInst = readInstalled("axios");
 const nxInst = readInstalled("next");
-const frInst = readInstalled("follow-redirects");
+const frInst = readFollowRedirectsVersion();
 const ignored = [];
 const unresolved = [];
 
