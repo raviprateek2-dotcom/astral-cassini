@@ -108,7 +108,7 @@ Backend runs at **<http://localhost:8000>** (API docs: `/docs`)
 
 ### Frontend Setup
 
-The repository root has a minimal **`package.json`** / **`package-lock.json`** so automation that looks for a lockfile at the repo root (for example some GitHub Actions setup steps) can detect **npm**. The Next.js app and its real lockfile remain under **`frontend/`** — always install and run scripts from there.
+The repository root has a **`package.json`** / **`package-lock.json`** that list **`next`**, **`react`**, and **`react-dom`** so tools such as **Vercel** can detect Next.js when the Git root is the project root. **Install and build the app in `frontend/`** (that is where the real app and `package-lock.json` live). Deployments use **`vercel.json`** at the repo root (`installCommand` / `buildCommand` run with `--prefix frontend`). In the Vercel dashboard you can instead set **Root Directory** to **`frontend`** and simplify; the committed files support **either** layout.
 
 ```bash
 cd frontend

@@ -1,5 +1,10 @@
 {
   "name": "astral-cassini",
   "private": true,
-  "description": "Monorepo root (npm). Application lives in frontend/ — use cd frontend && npm ci."
+  "description": "Repository root. The Next.js app and full dependency tree live in frontend/. These root dependencies exist so Vercel can detect Next.js when the Git root is the project root; installs and builds run in frontend/ (see vercel.json).",
+  "dependencies": {
+    "next": "16.2.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  }
 }
