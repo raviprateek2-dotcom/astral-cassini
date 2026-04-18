@@ -42,6 +42,8 @@ npm run build   # required when running E2E with CI=true (matches GitHub Actions
 npm run test:e2e
 ```
 
+Full-stack (`npm run test:e2e:full`): backend must be **Python 3.11** (on Windows, Playwright starts **`py -3.11`**). Override with **`PLAYWRIGHT_BACKEND_PYTHON`**. SQLite for E2E defaults to the **OS temp directory** (set **`E2E_DATABASE_URL`** to force e.g. `sqlite:///./data/e2e.db`) so synced project folders do not block migrations.
+
 Smoke tests live in `e2e/`. They do not require the backend; you may see Next.js rewrite warnings if nothing is listening on port 8000.
 
 ## Authentication Notes

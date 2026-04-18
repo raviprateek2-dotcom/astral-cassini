@@ -39,5 +39,7 @@ Use this while validating one job pipeline end-to-end in the UI.
 - [x] `GET /api/workflow/{job_id}/audit` includes gate actions
 
 ## Automated regression run
-- [x] Backend E2E matrix and full-flow tests pass
-- [x] Playwright smoke + authenticated tests pass
+- [ ] Backend: `pytest tests -q` (from `backend/`; includes API job-access isolation tests)
+- [ ] Playwright smoke: `cd frontend && npm run test:e2e` (mocked API)
+- [ ] Playwright full-stack: `cd frontend && npm run build && npm run test:e2e:full` (`PLAYWRIGHT_FULL_STACK=1`; covers authenticated **Interviews**, **Decisions**, **Approvals**, **Audit** stubs in `e2e/app.authenticated.spec.ts`)
+- Progress tracker: [IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md)

@@ -1,6 +1,31 @@
+import os from "node:os";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
+
+/** Default E2E DB: CI uses backend `./data/e2e.db`. On Windows, repo paths under OneDrive can lock SQLite; use %TEMP% instead. */
+function defaultE2eDatabaseUrl(): string {
+    if (process.env.E2E_DATABASE_URL?.trim()) {
+        return process.env.E2E_DATABASE_URL.trim();
+    }
+    const file = path.join(os.tmpdir(), "prohr-playwright-e2e.db");
+    const normalized = path.resolve(file).replace(/\\/g, "/");
+    if (/^[A-Za-z]:\//.test(normalized)) {
+        return `sqlite:///${normalized}`;
+    }
+    return `sqlite:////${normalized}`;
+}
+
+/** Prefer Python 3.11 (matches CI). Windows: `py -3.11`; override with PLAYWRIGHT_BACKEND_PYTHON=python3.11 */
+function uvicornCommand(backendPort: string): string {
+    const override = process.env.PLAYWRIGHT_BACKEND_PYTHON?.trim();
+    const prefix = override
+        ? `${override} -m uvicorn`
+        : process.platform === "win32"
+          ? "py -3.11 -m uvicorn"
+          : "python -m uvicorn";
+    return `${prefix} app.main:app --host 127.0.0.1 --port ${backendPort}`;
+}
 
 const PORT = Number(process.env.PORT) || 3000;
 const baseURL = `http://127.0.0.1:${PORT}`;
@@ -61,7 +86,7 @@ export default defineConfig({
     webServer: fullStack
         ? [
               {
-                  command: `python -m uvicorn app.main:app --host 127.0.0.1 --port ${backendPort}`,
+                  command: uvicornCommand(backendPort),
                   cwd: backendDir,
                   // Root avoids importing RAG/embeddings (see /api/health → get_collection_count).
                   url: `${backendURL}/`,
@@ -70,7 +95,7 @@ export default defineConfig({
                   env: {
                       ...process.env,
                       SECRET_KEY: process.env.SECRET_KEY ?? "local-dev-secret-key-must-be-32chars-long",
-                      DATABASE_URL: process.env.E2E_DATABASE_URL ?? "sqlite:///./data/e2e.db",
+                      DATABASE_URL: defaultE2eDatabaseUrl(),
                       APP_ENV: "development",
                   },
               },

@@ -50,7 +50,8 @@ Frontend (Next.js 16)  ->  FastAPI Backend  ->  Orchestrator (state machine)
 
 The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator.py` advances stages and invokes agent nodes until a HITL breakpoint or completion. **LangGraph** is optional for local experiments (`backend/requirements-dev.txt`, e.g. `test_graph_standalone.py`).
 
-**Deeper technical map:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+**Deeper technical map:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
+**Implementation / testing progress:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md)
 
 **Roadmap:** [docs/HIGH_VALUE_ROADMAP.md](docs/HIGH_VALUE_ROADMAP.md) (Phases **A-C** done). **Changes:** [CHANGELOG.md](CHANGELOG.md).
 
