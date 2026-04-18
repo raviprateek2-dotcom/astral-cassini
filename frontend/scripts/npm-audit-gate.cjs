@@ -3,7 +3,8 @@
  * Run `npm audit --audit-level=high --json` and reconcile with on-disk versions.
  * npm's advisory metadata can still flag axios/next after patched tarballs are installed
  * (registry/advisory lag or audit resolution quirks on CI); if node_modules versions
- * are patched, those entries are ignored. Any other high/critical finding still fails.
+ * are patched, those entries are ignored. **follow-redirects** is ignored when the installed
+ * tree is **>= 1.16.0** (GHSA-r4q5-vmmm-2653). Any other high/critical finding still fails.
  */
 const { spawnSync } = require("child_process");
 const fs = require("fs");
@@ -36,6 +37,11 @@ function nextPatched(v) {
   if (mi < 2) return false;
   if (mi > 2) return true;
   return pa >= 3;
+}
+
+/** GHSA-r4q5-vmmm-2653: follow-redirects <=1.15.11 */
+function followRedirectsPatched(v) {
+  return cmp(parseParts(v), parseParts("1.16.0")) >= 0;
 }
 
 function readInstalled(pkg) {
@@ -72,6 +78,7 @@ if (keys.length === 0) {
 
 const axInst = readInstalled("axios");
 const nxInst = readInstalled("next");
+const frInst = readInstalled("follow-redirects");
 const ignored = [];
 const unresolved = [];
 
@@ -110,6 +117,19 @@ function allAxiosNextPatched(names) {
 
 for (const key of keys) {
   const v = vulns[key];
+  const top = (v && v.name) || key;
+
+  if (
+    (key === "follow-redirects" || top === "follow-redirects") &&
+    frInst &&
+    followRedirectsPatched(frInst)
+  ) {
+    ignored.push(
+      `follow-redirects@${frInst} (installed >= 1.16.0; audit may still list GHSA-r4q5-vmmm-2653 for <=1.15.11)`,
+    );
+    continue;
+  }
+
   const severity = (v && v.severity) || "";
   if (severity !== "high" && severity !== "critical") {
     continue;
@@ -119,7 +139,6 @@ for (const key of keys) {
     ignored.push(`${key}: ${[...names].join(",")} @ installed axios=${axInst} next=${nxInst}`);
     continue;
   }
-  const top = (v && v.name) || key;
   if (top === "axios" && axInst && axiosPatched(axInst)) {
     ignored.push(`axios@${axInst} (top-level)`);
     continue;
