@@ -112,7 +112,9 @@ export default defineConfig({
               },
           ]
         : {
-              command: process.env.CI ? `npm run start -- -p ${PORT}` : `npm run dev -- -p ${PORT}`,
+              // `next dev` does not apply this app's auth redirect the same way as production;
+              // smoke asserts middleware + `next start` (matches Vercel).
+              command: `npm run start -- -p ${PORT}`,
               cwd: frontendDir,
               url: baseURL,
               reuseExistingServer: !process.env.CI,

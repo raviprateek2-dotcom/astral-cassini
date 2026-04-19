@@ -19,14 +19,30 @@ export function middleware(request: NextRequest) {
 
   const hasSession = Boolean(request.cookies.get("access_token")?.value);
   if (!hasSession) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    const dest = new URL("/", request.url);
+    if (pathname && pathname !== "/") {
+      dest.searchParams.set("next", pathname);
+    }
+    return NextResponse.redirect(dest);
   }
   return NextResponse.next();
 }
 
+/**
+ * Run only on app shell routes (no regex backtracking on Edge; avoids static files and `_next`).
+ * `:path*` matches the segment and subpaths (including zero extra segments for the base path).
+ */
 export const config = {
-  matcher: ["/((?!.*\\..*).*)"],
+  matcher: [
+    "/dashboard/:path*",
+    "/analytics/:path*",
+    "/kanban/:path*",
+    "/jobs/:path*",
+    "/insights/:path*",
+    "/candidates/:path*",
+    "/approvals/:path*",
+    "/interviews/:path*",
+    "/decisions/:path*",
+    "/audit/:path*",
+  ],
 };
