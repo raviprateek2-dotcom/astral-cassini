@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Full-stack deployment guide:** [docs/DEPLOY_FULL_STACK.md](docs/DEPLOY_FULL_STACK.md) — Docker Compose on one VM, split API + Vercel UI, and Render/Railway/Fly notes; README links under **Full stack (frontend + backend)**.
 - **Frontend demo mode:** **`NEXT_PUBLIC_DEMO_MODE`** (`1` / `true`) skips API login and cookie session checks so the login page can open the app without a backend password (middleware + **`useAuth`** honor local demo profile). Documented in README / **`frontend/.env.example`** — insecure; demos only.
 - **Vercel (repo root):** root **`vercel.json`** runs **`npm ci` / `npm run build`** with **`--prefix frontend`**; root **`package.json`** lists **`next@16.2.3`** so detection works when the Vercel project root is not set to **`frontend/`** (see README).
 - **Deployed demo logins:** `Settings.seed_demo_users` / **`SEED_DEMO_USERS`** plus **`ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`** (default **false**) so `admin@prohr.ai` / `hr@prohr.ai` can be seeded when **`APP_ENV`** is not `development`/`dev`/`local` — only for private demos; requires **`DEMO_ADMIN_PASSWORD`** and **`DEMO_HR_PASSWORD`** (8+ chars each). See **README** environment table and **Vercel** subsection.

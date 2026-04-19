@@ -142,6 +142,7 @@ For WebSockets, the query param must be a **short-lived WS ticket** (`aud=prohr-
 2. **Docker Compose (default)** — User opens **`http://localhost:3000`**. Traffic to **`/api/*`** is rewritten by Next to **`http://backend:8000`**. Set **`FRONTEND_URL=http://localhost:3000`** in `backend/.env`.
 3. **Direct API from browser** — Use **`docker-compose.direct-api.yml`** override; set **`NEXT_PUBLIC_API_URL`** and **`CORS`** so **`http://localhost:3000`** is allowed (already via `FRONTEND_URL` / defaults).
 4. **Production (recommended)** — **One public HTTPS origin** (e.g. `https://app.example.com`) with a **reverse proxy**: `/api` and `/ws` routed to the FastAPI service; **`FRONTEND_URL`** and cookie **`Secure`** / **`SameSite`** aligned with that origin. Avoid exposing the backend origin separately unless required.
+5. **Full stack on a VM or split cloud (Vercel + API)** — See **[DEPLOY_FULL_STACK.md](./DEPLOY_FULL_STACK.md)** (Vercel does not host the Python backend as-is).
 
 ### Optional: backend on host, frontend only in Docker
 

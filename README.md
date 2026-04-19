@@ -112,6 +112,10 @@ Backend runs at **[http://localhost:8000](http://localhost:8000)** (API docs: `/
 
 The root `**package.json`** / `**package-lock.json**` are minimal so CI and other automation can detect **npm** at the repo root. All app dependencies and `**next`** live under `**frontend/**`.
 
+#### Full stack (frontend + backend)
+
+Vercel only hosts the **Next.js** app. The **FastAPI** backend must run elsewhere (VM, Render, Railway, Fly.io, etc.). See **[docs/DEPLOY_FULL_STACK.md](docs/DEPLOY_FULL_STACK.md)** for **Docker Compose on one server**, **split deploy (API + Vercel UI)**, and what Vercel cannot replace.
+
 #### Vercel
 
 1. Import this Git repository.
