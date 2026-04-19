@@ -1,4 +1,4 @@
-# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
+﻿# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
 
 A multi-agent recruitment platform with a **deterministic Python orchestrator** (LangChain / OpenAI for LLM steps), **human-in-the-loop gates**, and **FAISS-backed RAG** for resume search.
 
@@ -118,7 +118,7 @@ The root `**package.json`** / `**package-lock.json**` are minimal so CI and othe
 2. **Root Directory (pick one):**
   - **Recommended:** **Project → Settings → Build and Deployment → Root Directory** → `**frontend`** → **Save**. Vercel then uses `**frontend/package.json`** (which already lists `**next**`).
   - **Alternative (repo root as project root):** Leave Root Directory empty or `**.`**. The repo includes `**vercel.json**` (install/build under `**frontend/**`) and a root `**package.json**` marker with `**next**` so Vercel’s framework detector does not show *“No Next.js version detected”*.
-3. Add env vars (see `**frontend/.env.example*`*) such as `**NEXT_PUBLIC_API_URL**` for your deployed API.
+3. Add env vars (see `**frontend/.env.example*`*) such as `**NEXT_PUBLIC_API_URL**` for your deployed API. For a **passwordless UI-only demo** (no API login), set `**NEXT_PUBLIC_DEMO_MODE=1**` — see the environment table (not for real production).
 4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
 
 **Demo logins after deploy:** demo users are **not** created when `APP_ENV` is production unless you explicitly set `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true` together with `SEED_DEMO_USERS=true` and strong `DEMO_ADMIN_PASSWORD` / `DEMO_HR_PASSWORD` (see `.env.example`). Use emails `**admin@prohr.ai`** or `**hr@prohr.ai**` with the passwords you configured (not the old `admin123` from local-only scripts unless you set that as `DEMO_ADMIN_PASSWORD`). If the browser calls a **separate API host** (`NEXT_PUBLIC_API_URL`), set backend `**FRONTEND_URL`** and `**CORS_EXTRA_ORIGINS**` to your Vercel origin, and use `**AUTH_COOKIE_SECURE=true**` with `**AUTH_COOKIE_SAMESITE=none**` so session cookies attach to cross-site API requests.
@@ -168,6 +168,7 @@ Dashboard runs at **[http://localhost:3000](http://localhost:3000)**
 | Frontend | `NEXT_PUBLIC_API_URL`                         | If empty, Axios uses same-origin `/api` (Next rewrites). If set, browser calls this origin (must be CORS-allowed).                                                                                                   |
 | Frontend | `BACKEND_URL`                                 | Next **server** rewrite target (local dev: `http://127.0.0.1:8000`; Docker build: `http://backend:8000`).                                                                                                            |
 | Frontend | `NEXT_PUBLIC_WS_URL`                          | WebSocket URL for live updates (often `ws://localhost:8000` when the API publishes port 8000).                                                                                                                       |
+| Frontend | `NEXT_PUBLIC_DEMO_MODE`                       | If `1` or `true`, login skips the API and the shell opens without a session cookie (**insecure** — private demos only; see `frontend/src/lib/demoMode.ts`).                                                         |
 | CI       | `SECRET_KEY`                                  | GitHub Actions sets this for `pytest`; copy the pattern for local test runs if needed.                                                                                                                               |
 
 

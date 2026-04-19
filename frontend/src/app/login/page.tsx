@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import type { MeResponse } from "@/lib/api";
+import { isFrontendDemoMode } from "@/lib/demoMode";
 
 type LoginStep = "identify" | "authenticate" | "processing" | "success";
 
@@ -34,7 +36,11 @@ export default function LoginPage() {
         }
 
         if (step === "authenticate") {
-            if (!password) { setError("Password is required"); return; }
+            const demo = isFrontendDemoMode();
+            if (!demo && !password) {
+                setError("Password is required");
+                return;
+            }
             setStep("processing");
             setTerminalLines(["> Initializing Agent Core v4.0..."]);
 
@@ -43,26 +49,38 @@ export default function LoginPage() {
                 await addTerminalLine("> Verifying RSA-4096 Identity matrix...", 600);
                 await addTerminalLine("> Pinging Liaison Agent...", 300);
 
-                const data = await api.login(email, password);
-
-                await addTerminalLine(`> [OK] Access Granted level: ${data.user.role.toUpperCase()}`, 400);
-                await addTerminalLine("> Synchronizing local vector stores...", 500);
-                await addTerminalLine(`> Hello, ${data.user.full_name.split(' ')[0]}. Booting dashboard...`, 300);
-
-                localStorage.setItem("user", JSON.stringify(data.user));
+                if (demo) {
+                    const me: MeResponse = {
+                        id: 0,
+                        email: email.trim() || "demo@prohr.ai",
+                        full_name: "Demo User",
+                        role: "hr_manager",
+                        department: "Engineering",
+                        is_active: true,
+                    };
+                    localStorage.setItem("user", JSON.stringify(me));
+                    await addTerminalLine("> [OK] Demo mode — opening dashboard (no API session).", 400);
+                    await addTerminalLine("> Synchronizing local vector stores...", 300);
+                    await addTerminalLine(`> Hello, ${me.full_name.split(" ")[0]}. Booting dashboard...`, 300);
+                } else {
+                    const data = await api.login(email, password);
+                    await addTerminalLine(`> [OK] Access Granted level: ${data.user.role.toUpperCase()}`, 400);
+                    await addTerminalLine("> Synchronizing local vector stores...", 500);
+                    await addTerminalLine(`> Hello, ${data.user.full_name.split(" ")[0]}. Booting dashboard...`, 300);
+                    localStorage.setItem("user", JSON.stringify(data.user));
+                }
 
                 setTimeout(() => setStep("success"), 600);
                 setTimeout(() => router.push("/dashboard"), 1500);
-
             } catch (err: unknown) {
-                await addTerminalLine("> [CRITICAL ERROR] Authentication failure.", 100);
-                await addTerminalLine("> Details: Access Denied by Hive Guard.", 100);
+                await addTerminalLine("> Authentication failed.", 100);
                 setTimeout(() => {
-                    const message = err instanceof Error ? err.message : "Security Clearance Denied";
+                    const message =
+                        err instanceof Error ? err.message : "Login failed — check email/password and API connection.";
                     setError(message);
                     setStep("authenticate");
                     setTerminalLines([]);
-                }, 1500);
+                }, 800);
             }
         }
     };
@@ -119,6 +137,19 @@ export default function LoginPage() {
                     <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 8, letterSpacing: "1px", textTransform: "uppercase" }}>
                         Multi-Agent Recruitment Ecosystem
                     </p>
+                    {isFrontendDemoMode() && (
+                        <p style={{
+                            color: "rgba(251, 191, 36, 0.95)",
+                            fontSize: "0.75rem",
+                            marginTop: 12,
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            background: "rgba(251, 191, 36, 0.08)",
+                            border: "1px solid rgba(251, 191, 36, 0.25)",
+                        }}>
+                            Demo mode: use any email (or leave default) — password is not required. Do not enable on production.
+                        </p>
+                    )}
                 </div>
 
                 {/* Pipeline Step Indicator */}

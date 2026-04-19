@@ -3,6 +3,27 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { api, type MeResponse } from "@/lib/api";
+import { isFrontendDemoMode } from "@/lib/demoMode";
+
+function meResponseFromLocalStorage(): MeResponse | null {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw) as Partial<MeResponse> & { full_name?: string; role?: string; email?: string };
+        if (!parsed?.email || !parsed?.role) return null;
+        return {
+            id: typeof parsed.id === "number" ? parsed.id : Number(parsed.id) || 0,
+            email: String(parsed.email),
+            full_name: String(parsed.full_name ?? "Demo user"),
+            role: String(parsed.role),
+            department: parsed.department ?? null,
+            is_active: parsed.is_active !== false,
+        };
+    } catch {
+        return null;
+    }
+}
 
 type AuthContextType = {
     user: MeResponse | null;
@@ -26,6 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const initializeAuth = async () => {
+            if (isFrontendDemoMode()) {
+                const fromStore = meResponseFromLocalStorage();
+                setUser(fromStore);
+                if (!fromStore && pathname !== "/login" && pathname !== "/") {
+                    router.replace("/login");
+                }
+                setLoading(false);
+                return;
+            }
             try {
                 const me = await api.me();
                 setUser(me);
@@ -44,7 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [pathname, router]);
 
     const logout = () => {
-        api.logout().catch(() => null);
+        if (!isFrontendDemoMode()) {
+            api.logout().catch(() => null);
+        }
         localStorage.removeItem("user");
         sessionStorage.removeItem("ws_token");
         setUser(null);

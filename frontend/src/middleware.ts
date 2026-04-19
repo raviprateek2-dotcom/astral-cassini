@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isFrontendDemoMode } from "@/lib/demoMode";
 
 const PUBLIC_PATHS = new Set(["/", "/login"]);
 
@@ -14,6 +15,10 @@ function isPublicPath(pathname: string): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (isFrontendDemoMode()) {
     return NextResponse.next();
   }
 
