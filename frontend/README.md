@@ -31,16 +31,17 @@ Frontend runs on `http://localhost:3000`.
 - `npm run start` - Run production server
 - `npm run lint` - Run ESLint
 - `npm test` - Run Jest unit/component tests
-- `npm run test:e2e` - Run Playwright E2E (starts Next automatically; use `CI=true` for production `next start`, otherwise `next dev`)
+- `npm run test:e2e` - Run Playwright smoke E2E (`pretest:e2e` runs `npm run build`, then Playwright starts **`next start`**, same as production/Vercel; `next dev` does not exercise auth middleware redirects reliably)
 - `npm run test:e2e:ui` - Playwright UI mode
 
 ### E2E setup (first time)
 
 ```bash
 npx playwright install chromium
-npm run build   # required when running E2E with CI=true (matches GitHub Actions)
 npm run test:e2e
 ```
+
+`npm run test:e2e` triggers a production build first. To iterate faster after a successful build, run `npx playwright test` (skips the lifecycle hook; ensure `.next` is current).
 
 Full-stack (`npm run test:e2e:full`): backend must be **Python 3.11** (on Windows, Playwright starts **`py -3.11`**). Override with **`PLAYWRIGHT_BACKEND_PYTHON`**. SQLite for E2E defaults to the **OS temp directory** (set **`E2E_DATABASE_URL`** to force e.g. `sqlite:///./data/e2e.db`) so synced project folders do not block migrations.
 
