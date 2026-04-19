@@ -118,7 +118,22 @@ The root **`package.json`** / **`package-lock.json`** are minimal so CI and othe
 3. Add env vars (see **`frontend/.env.example`**) such as **`NEXT_PUBLIC_API_URL`** for your deployed API.
 4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
 
-**Other deploy paths:** run **`docker compose up --build`** for a full stack on your own host (see **Docker Compose** below). A sample **GitHub Pages** workflow was removed: this app uses **Next.js rewrites** and is not built as a static **`out/`** export, so Pages is not a drop-in target without substantial changes.
+**Other deploy paths:** run **`docker compose up --build`** for a full stack on your own host (see **Docker Compose** below).
+
+#### GitHub Pages
+
+A replacement workflow now deploys a static export from `frontend/` to GitHub Pages (`.github/workflows/nextjs.yml`).
+
+1. In GitHub, open **Settings -> Pages** and set **Build and deployment** to **GitHub Actions**.
+2. In **Settings -> Secrets and variables -> Actions -> Variables**, define:
+   - `PAGES_NEXT_PUBLIC_API_URL` (required; your deployed backend base URL, e.g. `https://api.example.com`)
+   - `PAGES_NEXT_PUBLIC_WS_URL` (optional; your deployed websocket URL, e.g. `wss://api.example.com`)
+3. Push to `master`/`main` (or run the workflow manually) and GitHub will publish to:
+   - `https://<owner>.github.io/<repo>/`
+
+Notes:
+- GitHub Pages serves static files only; middleware/edge auth redirects are disabled for the Pages build.
+- For full production behavior (middleware + rewrites), use Vercel or Docker deployment.
 
 ```bash
 cd frontend
