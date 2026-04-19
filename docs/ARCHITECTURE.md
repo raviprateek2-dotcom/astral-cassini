@@ -87,7 +87,7 @@ pytest -m e2e -q
 
 ### Manual HTTP “E2E” scripts (not in CI)
 
-These modules expect **`uvicorn`** running on **`127.0.0.1:8000`**, demo accounts seeded (**`SEED_DEMO_USERS`** per `app/main.py`), and **`requests`** (`pip install -r requirements-dev.txt`):
+These modules expect **`uvicorn`** running on **`127.0.0.1:8000`**, demo accounts seeded when **`SEED_DEMO_USERS`** is set (and **`ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`** if `APP_ENV` is not dev — see `app/main.py` / README), and **`requests`** (`pip install -r requirements-dev.txt`):
 
 - `backend/e2e_full_test.py`
 - `backend/e2e_full_automation.py`
