@@ -118,6 +118,8 @@ The root **`package.json`** / **`package-lock.json`** are minimal so CI and othe
 3. Add env vars (see **`frontend/.env.example`**) such as **`NEXT_PUBLIC_API_URL`** for your deployed API.
 4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
 
+**Demo logins after deploy:** demo users are **not** created when `APP_ENV` is production unless you explicitly set `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true` together with `SEED_DEMO_USERS=true` and strong `DEMO_ADMIN_PASSWORD` / `DEMO_HR_PASSWORD` (see `.env.example`). Use emails **`admin@prohr.ai`** or **`hr@prohr.ai`** with the passwords you configured (not the old `admin123` from local-only scripts unless you set that as `DEMO_ADMIN_PASSWORD`). If the browser calls a **separate API host** (`NEXT_PUBLIC_API_URL`), set backend **`FRONTEND_URL`** and **`CORS_EXTRA_ORIGINS`** to your Vercel origin, and use **`AUTH_COOKIE_SECURE=true`** with **`AUTH_COOKIE_SAMESITE=none`** so session cookies attach to cross-site API requests.
+
 **Other deploy paths:** run **`docker compose up --build`** for a full stack on your own host (see **Docker Compose** below).
 
 #### GitHub Pages
@@ -156,7 +158,8 @@ Dashboard runs at **<http://localhost:3000>**
 | Backend | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Use `secure=true` and appropriate `samesite` in production over HTTPS. |
 | Backend | `WS_TICKET_EXPIRE_MINUTES` | Lifetime for WS tickets used in `/ws/{job_id}?token=...`. |
 | Backend | `WS_ALLOW_LEGACY_BROWSER_TOKEN` | Legacy fallback for full JWT in WS token. Default is **false**; keep false in production. |
-| Backend | `SEED_DEMO_USERS` | Dev only (`development`/`dev`/`local`); set `true` plus `DEMO_*_PASSWORD` to seed demo accounts. |
+| Backend | `SEED_DEMO_USERS` | When `true`, seeds `admin@prohr.ai` / `hr@prohr.ai` if missing (requires `DEMO_ADMIN_PASSWORD` and `DEMO_HR_PASSWORD`, each 8+ chars). By default this runs only when `APP_ENV` is `development`, `dev`, or `local`. |
+| Backend | `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV` | Set `true` only for **private** deployed demos so seeding runs when `APP_ENV` is production/staging. **Never** on a public production API. |
 | Frontend | `NEXT_PUBLIC_API_URL` | If empty, Axios uses same-origin `/api` (Next rewrites). If set, browser calls this origin (must be CORS-allowed). |
 | Frontend | `BACKEND_URL` | Next **server** rewrite target (local dev: `http://127.0.0.1:8000`; Docker build: `http://backend:8000`). |
 | Frontend | `NEXT_PUBLIC_WS_URL` | WebSocket URL for live updates (often `ws://localhost:8000` when the API publishes port 8000). |

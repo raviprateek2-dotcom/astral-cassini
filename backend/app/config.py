@@ -95,6 +95,19 @@ class Settings(BaseSettings):
     retention_days_completed_jobs: int = 30
     retention_max_jobs: int = 500
 
+    # Demo accounts (see app/main.py startup seeding)
+    seed_demo_users: bool = Field(
+        default=False,
+        description="When True, seed admin@prohr.ai / hr@prohr.ai if missing (requires DEMO_* passwords).",
+    )
+    allow_seed_demo_users_outside_dev: bool = Field(
+        default=False,
+        description=(
+            "Dangerous: allow demo seeding when APP_ENV is not development/dev/local. "
+            "Use only for private demos; never on a public production API."
+        ),
+    )
+
     # Upload safety
     resume_upload_max_bytes: int = Field(
         default=5_242_880,  # 5 MB

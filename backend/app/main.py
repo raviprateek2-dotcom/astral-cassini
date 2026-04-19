@@ -66,10 +66,12 @@ async def lifespan(app: FastAPI):
     # Initialize SQLAlchemy database tables on startup
     init_db()
     
-    # Auto-create demo users only when explicitly enabled in development.
-    seed_demo_users = os.getenv("SEED_DEMO_USERS", "false").lower() == "true"
+    # Auto-create demo users when enabled (dev by default; staging/prod only with explicit opt-in).
     is_dev = settings.app_env.lower() in {"development", "dev", "local"}
-    if seed_demo_users and is_dev:
+    may_seed_demo = settings.seed_demo_users and (
+        is_dev or settings.allow_seed_demo_users_outside_dev
+    )
+    if may_seed_demo:
         from app.core.database import SessionLocal as LocalSession
         from app.models.db_models import User
         from app.core.auth import hash_password
@@ -78,6 +80,12 @@ async def lifespan(app: FastAPI):
         if len(demo_admin_password) < 8 or len(demo_hr_password) < 8:
             raise RuntimeError(
                 "SEED_DEMO_USERS=true requires DEMO_ADMIN_PASSWORD and DEMO_HR_PASSWORD (8+ chars)."
+            )
+        if settings.seed_demo_users and not is_dev:
+            logger.warning(
+                "Demo users are being seeded with APP_ENV=%s because "
+                "ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true. Do not use on public internet.",
+                settings.app_env,
             )
 
         db = LocalSession()
