@@ -6,6 +6,7 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **Vercel (repo root):** root **`vercel.json`** runs **`npm ci` / `npm run build`** with **`--prefix frontend`**; root **`package.json`** lists **`next@16.2.3`** so detection works when the Vercel project root is not set to **`frontend/`** (see README).
 - **Deployed demo logins:** `Settings.seed_demo_users` / **`SEED_DEMO_USERS`** plus **`ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`** (default **false**) so `admin@prohr.ai` / `hr@prohr.ai` can be seeded when **`APP_ENV`** is not `development`/`dev`/`local` — only for private demos; requires **`DEMO_ADMIN_PASSWORD`** and **`DEMO_HR_PASSWORD`** (8+ chars each). See **README** environment table and **Vercel** subsection.
 - **GitHub Pages:** `.github/workflows/nextjs.yml` builds a static export from **`frontend/`** (disables middleware for export, sets **`GITHUB_PAGES=true`** in CI). Replaces the old repo-root **`npx --no-install next build`** template that failed on this monorepo.
 - **Upload / parser safety:** `Settings.resume_parse_timeout_seconds` (default **45s**); job and deprecated resume uploads run PDF parsing in **`asyncio.to_thread`** with **`asyncio.wait_for`** — timeout returns **504**. Job route **`POST /api/jobs/{job_id}/resumes`** requires **`Content-Type: application/pdf`** (no `application/octet-stream`). Tests: MIME rejection, octet-stream rejection, parse-timeout path.

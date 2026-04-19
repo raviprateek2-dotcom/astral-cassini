@@ -1,5 +1,8 @@
 {
   "name": "astral-cassini",
   "private": true,
-  "description": "Repository root marker (npm lockfile for tools that expect one at the Git root). The Next.js app lives in frontend/ — see README."
+  "description": "Monorepo root. The Next.js app and real dependency tree live in frontend/. Root lists next so Vercel/Git detection succeeds when Root Directory is not set to frontend; vercel.json runs install/build under frontend/.",
+  "dependencies": {
+    "next": "16.2.3"
+  }
 }

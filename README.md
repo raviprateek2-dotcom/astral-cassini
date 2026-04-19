@@ -1,4 +1,4 @@
-﻿# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
+# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
 
 A multi-agent recruitment platform with a **deterministic Python orchestrator** (LangChain / OpenAI for LLM steps), **human-in-the-loop gates**, and **FAISS-backed RAG** for resume search.
 
@@ -57,15 +57,17 @@ The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator
 
 ### Pipeline agents (wired in the orchestrator)
 
-| # | Agent | Role |
-|---|-------|------|
-| 1 | **JD Architect** | Drafts bias-aware job descriptions |
-| 2 | **The Liaison** | Human-in-the-loop approval gatekeeper (JD, shortlist, hire) |
-| 3 | **The Scout** | Semantic resume search over the FAISS index (RAG) |
-| 4 | **The Screener** | Gap analysis and scoring |
-| 5 | **Outreach** | Personalized candidate outreach emails |
-| 6 | **Response Tracker** | Engagement-stage follow-up and conversion tracking |
-| 7 | **Hiring Ops Coordinator** | Post-shortlist automation: scheduling, interview assessment (LLM), deterministic hire decision; **Offer Generator** runs at the offer stage |
+
+| #   | Agent                      | Role                                                                                                                                        |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **JD Architect**           | Drafts bias-aware job descriptions                                                                                                          |
+| 2   | **The Liaison**            | Human-in-the-loop approval gatekeeper (JD, shortlist, hire)                                                                                 |
+| 3   | **The Scout**              | Semantic resume search over the FAISS index (RAG)                                                                                           |
+| 4   | **The Screener**           | Gap analysis and scoring                                                                                                                    |
+| 5   | **Outreach**               | Personalized candidate outreach emails                                                                                                      |
+| 6   | **Response Tracker**       | Engagement-stage follow-up and conversion tracking                                                                                          |
+| 7   | **Hiring Ops Coordinator** | Post-shortlist automation: scheduling, interview assessment (LLM), deterministic hire decision; **Offer Generator** runs at the offer stage |
+
 
 ## Quick Start
 
@@ -102,25 +104,26 @@ uvicorn app.main:app --reload
 
 Optional LangGraph experiments: `pip install -r requirements-dev.txt` (not required for the API or CI).
 
-Quick tests (from `backend/`, set `SECRET_KEY` as in CI): `pytest -m "unit or api" -q` for a fast slice; **`pytest tests -q`** matches the backend CI job. CI also runs an **informational** full-app `mypy` report (`mypy-full.ini`) that does not fail the pipeline - use it to track typing debt.
+Quick tests (from `backend/`, set `SECRET_KEY` as in CI): `pytest -m "unit or api" -q` for a fast slice; `**pytest tests -q**` matches the backend CI job. CI also runs an **informational** full-app `mypy` report (`mypy-full.ini`) that does not fail the pipeline - use it to track typing debt.
 
-Backend runs at **<http://localhost:8000>** (API docs: `/docs`)
+Backend runs at **[http://localhost:8000](http://localhost:8000)** (API docs: `/docs`)
 
 ### Frontend Setup
 
-The root **`package.json`** / **`package-lock.json`** are minimal so CI and other automation can detect **npm** at the repo root. All app dependencies and **`next`** live under **`frontend/`**.
+The root `**package.json`** / `**package-lock.json**` are minimal so CI and other automation can detect **npm** at the repo root. All app dependencies and `**next`** live under `**frontend/**`.
 
 #### Vercel
 
 1. Import this Git repository.
-2. Open **Project → Settings → Build and Deployment → Root Directory** → **Edit** → set to **`frontend`** → **Save**.  
-   This makes Vercel read **`frontend/package.json`**, so **Next.js is detected** and default install/build (`npm ci`, `next build`) run in the right folder.
-3. Add env vars (see **`frontend/.env.example`**) such as **`NEXT_PUBLIC_API_URL`** for your deployed API.
+2. **Root Directory (pick one):**
+  - **Recommended:** **Project → Settings → Build and Deployment → Root Directory** → `**frontend`** → **Save**. Vercel then uses `**frontend/package.json`** (which already lists `**next**`).
+  - **Alternative (repo root as project root):** Leave Root Directory empty or `**.`**. The repo includes `**vercel.json**` (install/build under `**frontend/**`) and a root `**package.json**` marker with `**next**` so Vercel’s framework detector does not show *“No Next.js version detected”*.
+3. Add env vars (see `**frontend/.env.example*`*) such as `**NEXT_PUBLIC_API_URL**` for your deployed API.
 4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
 
-**Demo logins after deploy:** demo users are **not** created when `APP_ENV` is production unless you explicitly set `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true` together with `SEED_DEMO_USERS=true` and strong `DEMO_ADMIN_PASSWORD` / `DEMO_HR_PASSWORD` (see `.env.example`). Use emails **`admin@prohr.ai`** or **`hr@prohr.ai`** with the passwords you configured (not the old `admin123` from local-only scripts unless you set that as `DEMO_ADMIN_PASSWORD`). If the browser calls a **separate API host** (`NEXT_PUBLIC_API_URL`), set backend **`FRONTEND_URL`** and **`CORS_EXTRA_ORIGINS`** to your Vercel origin, and use **`AUTH_COOKIE_SECURE=true`** with **`AUTH_COOKIE_SAMESITE=none`** so session cookies attach to cross-site API requests.
+**Demo logins after deploy:** demo users are **not** created when `APP_ENV` is production unless you explicitly set `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true` together with `SEED_DEMO_USERS=true` and strong `DEMO_ADMIN_PASSWORD` / `DEMO_HR_PASSWORD` (see `.env.example`). Use emails `**admin@prohr.ai`** or `**hr@prohr.ai**` with the passwords you configured (not the old `admin123` from local-only scripts unless you set that as `DEMO_ADMIN_PASSWORD`). If the browser calls a **separate API host** (`NEXT_PUBLIC_API_URL`), set backend `**FRONTEND_URL`** and `**CORS_EXTRA_ORIGINS**` to your Vercel origin, and use `**AUTH_COOKIE_SECURE=true**` with `**AUTH_COOKIE_SAMESITE=none**` so session cookies attach to cross-site API requests.
 
-**Other deploy paths:** run **`docker compose up --build`** for a full stack on your own host (see **Docker Compose** below).
+**Other deploy paths:** run `**docker compose up --build`** for a full stack on your own host (see **Docker Compose** below).
 
 #### GitHub Pages
 
@@ -128,12 +131,13 @@ A replacement workflow now deploys a static export from `frontend/` to GitHub Pa
 
 1. In GitHub, open **Settings -> Pages** and set **Build and deployment** to **GitHub Actions**.
 2. In **Settings -> Secrets and variables -> Actions -> Variables**, define:
-   - `PAGES_NEXT_PUBLIC_API_URL` (required; your deployed backend base URL, e.g. `https://api.example.com`)
-   - `PAGES_NEXT_PUBLIC_WS_URL` (optional; your deployed websocket URL, e.g. `wss://api.example.com`)
+  - `PAGES_NEXT_PUBLIC_API_URL` (required; your deployed backend base URL, e.g. `https://api.example.com`)
+  - `PAGES_NEXT_PUBLIC_WS_URL` (optional; your deployed websocket URL, e.g. `wss://api.example.com`)
 3. Push to `master`/`main` (or run the workflow manually) and GitHub will publish to:
-   - `https://<owner>.github.io/<repo>/`
+  - `https://<owner>.github.io/<repo>/`
 
 Notes:
+
 - GitHub Pages serves static files only; middleware/edge auth redirects are disabled for the Pages build.
 - For full production behavior (middleware + rewrites), use Vercel or Docker deployment.
 
@@ -144,35 +148,37 @@ npm install
 npm run dev
 ```
 
-Dashboard runs at **<http://localhost:3000>**
+Dashboard runs at **[http://localhost:3000](http://localhost:3000)**
 
 ### Environment variables
 
-| Area | Variable | Notes |
-|------|----------|--------|
-| Backend | `SECRET_KEY` | **Required.** 32+ character random string for JWT signing. |
-| Backend | `OPENAI_API_KEY` | Required for agents and embeddings. |
-| Backend | `LLM_MODEL` / `EMBEDDING_MODEL` | Optional overrides (defaults in `app/config.py`). |
-| Backend | `FRONTEND_URL` | Origin of the Next app; included in CORS allow list. |
-| Backend | `CORS_EXTRA_ORIGINS` | Optional comma-separated origins (e.g. staging). |
-| Backend | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Use `secure=true` and appropriate `samesite` in production over HTTPS. |
-| Backend | `WS_TICKET_EXPIRE_MINUTES` | Lifetime for WS tickets used in `/ws/{job_id}?token=...`. |
-| Backend | `WS_ALLOW_LEGACY_BROWSER_TOKEN` | Legacy fallback for full JWT in WS token. Default is **false**; keep false in production. |
-| Backend | `SEED_DEMO_USERS` | When `true`, seeds `admin@prohr.ai` / `hr@prohr.ai` if missing (requires `DEMO_ADMIN_PASSWORD` and `DEMO_HR_PASSWORD`, each 8+ chars). By default this runs only when `APP_ENV` is `development`, `dev`, or `local`. |
-| Backend | `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV` | Set `true` only for **private** deployed demos so seeding runs when `APP_ENV` is production/staging. **Never** on a public production API. |
-| Frontend | `NEXT_PUBLIC_API_URL` | If empty, Axios uses same-origin `/api` (Next rewrites). If set, browser calls this origin (must be CORS-allowed). |
-| Frontend | `BACKEND_URL` | Next **server** rewrite target (local dev: `http://127.0.0.1:8000`; Docker build: `http://backend:8000`). |
-| Frontend | `NEXT_PUBLIC_WS_URL` | WebSocket URL for live updates (often `ws://localhost:8000` when the API publishes port 8000). |
-| CI | `SECRET_KEY` | GitHub Actions sets this for `pytest`; copy the pattern for local test runs if needed. |
+
+| Area     | Variable                                      | Notes                                                                                                                                                                                                                |
+| -------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend  | `SECRET_KEY`                                  | **Required.** 32+ character random string for JWT signing.                                                                                                                                                           |
+| Backend  | `OPENAI_API_KEY`                              | Required for agents and embeddings.                                                                                                                                                                                  |
+| Backend  | `LLM_MODEL` / `EMBEDDING_MODEL`               | Optional overrides (defaults in `app/config.py`).                                                                                                                                                                    |
+| Backend  | `FRONTEND_URL`                                | Origin of the Next app; included in CORS allow list.                                                                                                                                                                 |
+| Backend  | `CORS_EXTRA_ORIGINS`                          | Optional comma-separated origins (e.g. staging).                                                                                                                                                                     |
+| Backend  | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Use `secure=true` and appropriate `samesite` in production over HTTPS.                                                                                                                                               |
+| Backend  | `WS_TICKET_EXPIRE_MINUTES`                    | Lifetime for WS tickets used in `/ws/{job_id}?token=...`.                                                                                                                                                            |
+| Backend  | `WS_ALLOW_LEGACY_BROWSER_TOKEN`               | Legacy fallback for full JWT in WS token. Default is **false**; keep false in production.                                                                                                                            |
+| Backend  | `SEED_DEMO_USERS`                             | When `true`, seeds `admin@prohr.ai` / `hr@prohr.ai` if missing (requires `DEMO_ADMIN_PASSWORD` and `DEMO_HR_PASSWORD`, each 8+ chars). By default this runs only when `APP_ENV` is `development`, `dev`, or `local`. |
+| Backend  | `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`           | Set `true` only for **private** deployed demos so seeding runs when `APP_ENV` is production/staging. **Never** on a public production API.                                                                           |
+| Frontend | `NEXT_PUBLIC_API_URL`                         | If empty, Axios uses same-origin `/api` (Next rewrites). If set, browser calls this origin (must be CORS-allowed).                                                                                                   |
+| Frontend | `BACKEND_URL`                                 | Next **server** rewrite target (local dev: `http://127.0.0.1:8000`; Docker build: `http://backend:8000`).                                                                                                            |
+| Frontend | `NEXT_PUBLIC_WS_URL`                          | WebSocket URL for live updates (often `ws://localhost:8000` when the API publishes port 8000).                                                                                                                       |
+| CI       | `SECRET_KEY`                                  | GitHub Actions sets this for `pytest`; copy the pattern for local test runs if needed.                                                                                                                               |
+
 
 **CI:** Backend runs **pytest** in three steps (`tests/unit` + `tests/api`, then `tests/integration`, then `tests/e2e`). Frontend runs **lint**, **Jest**, **build**, and **Playwright** (`npm run test:e2e`). Manual HTTP scripts (`backend/e2e_*.py`) are **not** in CI; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing).
 
 ### Observability endpoints
 
-- **`GET /api/health`** — includes in-memory observability counters under `observability`.
-- **`GET /api/analytics/observability`** — JSON counters, **admin-only**.
-- **`GET /api/analytics/metrics`** — Prometheus-style plaintext counters, **admin-only**.
-- Request tracing: backend adds **`x-request-id`** to responses and logs request completion with duration.
+- `**GET /api/health`** — includes in-memory observability counters under `observability`.
+- `**GET /api/analytics/observability**` — JSON counters, **admin-only**.
+- `**GET /api/analytics/metrics`** — Prometheus-style plaintext counters, **admin-only**.
+- Request tracing: backend adds `**x-request-id`** to responses and logs request completion with duration.
 
 ### WS migration checklist
 
@@ -182,11 +188,11 @@ Dashboard runs at **<http://localhost:3000>**
 
 ### Resume uploads (API)
 
-The dashboard uses **`POST /api/jobs/{job_id}/resumes`** (PDF only, sourcing/screening). **`POST /api/resumes/upload`** is **deprecated** for product use (still available for scripts; see `Deprecation` / `Sunset` headers and [CHANGELOG.md](CHANGELOG.md)). Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#resume-indexing-two-post-routes).
+The dashboard uses `**POST /api/jobs/{job_id}/resumes**` (PDF only, sourcing/screening). `**POST /api/resumes/upload**` is **deprecated** for product use (still available for scripts; see `Deprecation` / `Sunset` headers and [CHANGELOG.md](CHANGELOG.md)). Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#resume-indexing-two-post-routes).
 
 ### Docker Compose
 
-Prerequisites: **`backend/.env`** with at least **`SECRET_KEY`**, **`OPENAI_API_KEY`**, and **`FRONTEND_URL=http://localhost:3000`** (matches the URL users open; required for CORS and sensible cookie behavior).
+Prerequisites: `**backend/.env`** with at least `**SECRET_KEY**`, `**OPENAI_API_KEY**`, and `**FRONTEND_URL=http://localhost:3000**` (matches the URL users open; required for CORS and sensible cookie behavior).
 
 **Default (recommended)** - same-origin API via Next rewrites:
 
@@ -194,7 +200,7 @@ Prerequisites: **`backend/.env`** with at least **`SECRET_KEY`**, **`OPENAI_API_
 docker compose up --build
 ```
 
-Open **http://localhost:3000**. The UI calls **`/api/...`** on port 3000; Next proxies to the **`backend`** service. WebSockets still use **`ws://localhost:8000`** from the browser to the published API port.
+Open **[http://localhost:3000](http://localhost:3000)**. The UI calls `**/api/...`** on port 3000; Next proxies to the `**backend**` service. WebSockets still use `**ws://localhost:8000**` from the browser to the published API port.
 
 **Alternate** - browser talks directly to port 8000 for REST:
 
@@ -231,7 +237,6 @@ Details, env inventory, and production patterns: [docs/ARCHITECTURE.md](docs/ARC
 - **Frontend**: Next.js 16 + TypeScript + Tailwind CSS
 - **Real-time**: WebSocket for live pipeline updates
 
-
 ## Release Process
 
 Before tagging/deploying, run the checklist in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
@@ -259,6 +264,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1
 ```
 
 Expected outcome:
+
 - Backend lint/type/tests pass.
 - Frontend lint/tests/build pass.
 - Playwright smoke/full-stack flows pass.
