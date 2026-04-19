@@ -51,4 +51,5 @@ Smoke tests live in `e2e/`. They do not require the backend; you may see Next.js
 
 - **Browser session**: Login sets an **HTTP-only `access_token` cookie** (JWT); `axios` is configured with `withCredentials: true` so authenticated API calls use the cookie.
 - **WebSockets**: Before opening **`/ws/{job_id}`**, the client calls **`GET /api/auth/ws-ticket?job_id=`** (cookie auth) and passes the returned short-lived **ticket** as the `token` query param (`connectWebSocket` in `@/lib/api`). The login JSON `access_token` is not used for WS.
+- **Vercel + separate API host** (`NEXT_PUBLIC_API_URL` set): the backend must allow your frontend origin (**`FRONTEND_URL`**, **`CORS_EXTRA_ORIGINS`**) and usually needs **`AUTH_COOKIE_SECURE=true`** with **`AUTH_COOKIE_SAMESITE=none`** so the session cookie works on cross-site XHR. Demo **`admin@prohr.ai` / `hr@prohr.ai`** only exist if the API is configured to seed them — see the root **README** environment table (**`SEED_DEMO_USERS`**, **`ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`**, **`DEMO_*_PASSWORD`**).
 - Do not embed static credentials in UI defaults.
