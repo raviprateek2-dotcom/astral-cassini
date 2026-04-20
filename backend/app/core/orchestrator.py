@@ -210,11 +210,14 @@ class Orchestrator:
         self.job.current_stage = self.state.current_stage
         _assign_workflow_state(self.job, self.state.model_dump(mode="json"))
         
-        # Sync Audit Log
+        # Sync Audit Log — dedup using the stable entry UUID stored in `details` prefix
         for entry in self.state.audit_log:
             existing = self.db.query(AuditEvent).filter(
                 AuditEvent.job_id == self.job.job_id,
-                AuditEvent.timestamp == entry.timestamp
+                AuditEvent.action == entry.action,
+                AuditEvent.agent == entry.agent,
+                AuditEvent.stage == entry.stage,
+                AuditEvent.details == entry.details,
             ).first()
             if not existing:
                 self.db.add(AuditEvent(
@@ -442,13 +445,28 @@ def get_workflow_status(db: Session, job_id: str) -> dict | None:
 
 def get_all_workflows(db: Session) -> list[dict]:
     jobs = db.query(Job).order_by(Job.created_at.desc()).all()
-    return [{
+    return [_job_to_summary(j) for j in jobs]
+
+
+def get_workflows_by_owner(db: Session, user_id: int) -> list[dict]:
+    """Return workflows created by a specific user — DB-level filter (no full-table scan)."""
+    jobs = (
+        db.query(Job)
+        .filter(Job.created_by_id == user_id)
+        .order_by(Job.created_at.desc())
+        .all()
+    )
+    return [_job_to_summary(j) for j in jobs]
+
+
+def _job_to_summary(j: Job) -> dict:
+    return {
         "job_id": j.job_id,
         "job_title": j.job_title,
         "department": j.department,
         "current_stage": j.current_stage,
         "created_at": j.created_at.isoformat(),
-    } for j in jobs]
+    }
 
 
 def append_candidate_response(

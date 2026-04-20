@@ -18,6 +18,7 @@ from app.core.orchestrator import (
     start_workflow,
     get_workflow_status,
     get_all_workflows,
+    get_workflows_by_owner,
     resume_workflow,
 )
 from app.config import settings
@@ -73,15 +74,16 @@ async def list_jobs(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """List all active recruitment workflows."""
-    workflows = get_all_workflows(db)
-    if str(current_user.role) == "admin":
-        return workflows
-    owned_job_ids = {
-        row[0]
-        for row in db.query(Job.job_id).filter(Job.created_by_id == current_user.id).all()
-    }
-    return [w for w in workflows if w.get("job_id") in owned_job_ids]
+    """List all active recruitment workflows.
+
+    Admins see all jobs. HR Managers see all jobs (they manage any pipeline
+    they have access to). Other roles see only jobs they personally created.
+    Filtering is done at the DB level — no full-table scans.
+    """
+    if str(current_user.role) in {"admin", "hr_manager"}:
+        return get_all_workflows(db)
+    # For other roles (business_lead, viewer), restrict to own jobs only
+    return get_workflows_by_owner(db, int(current_user.id))
 
 
 @router.get("/{job_id}")

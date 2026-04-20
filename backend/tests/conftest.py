@@ -3,6 +3,9 @@ import tempfile
 from typing import Generator
 from unittest.mock import AsyncMock, patch
 
+# Ensure a valid SECRET_KEY exists before app modules are imported
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters-long")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
