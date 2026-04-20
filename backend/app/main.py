@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
         from app.core.database import SessionLocal as LocalSession
         from app.models.db_models import User
         from app.core.auth import hash_password
-        demo_admin_password = os.getenv("DEMO_ADMIN_PASSWORD", "")
-        demo_hr_password = os.getenv("DEMO_HR_PASSWORD", "")
+        demo_admin_password = os.getenv("DEMO_ADMIN_PASSWORD", "password123")
+        demo_hr_password = os.getenv("DEMO_HR_PASSWORD", "password123")
         if len(demo_admin_password) < 8 or len(demo_hr_password) < 8:
             raise RuntimeError(
                 "SEED_DEMO_USERS=true requires DEMO_ADMIN_PASSWORD and DEMO_HR_PASSWORD (8+ chars)."

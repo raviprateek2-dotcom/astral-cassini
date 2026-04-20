@@ -1,4 +1,4 @@
-﻿# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
+# PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
 
 A multi-agent recruitment platform with a **deterministic Python orchestrator** (LangChain / OpenAI for LLM steps), **human-in-the-loop gates**, and **FAISS-backed RAG** for resume search.
 
@@ -25,10 +25,13 @@ If you are non-technical, think of this as a "smart hiring workflow" that combin
 
 1. Start backend and frontend using the **Quick Start** section below.
 2. Open `http://localhost:3000`.
-3. Create one job in **Jobs**.
-4. Upload resumes for that job.
-5. Visit **Approvals** and move the pipeline through approvals.
-6. Check **Audit Trail** to see a timeline of all actions and decisions.
+3. Log in using the default demo credentials:
+   - **Email:** `admin@prohr.ai` (or `hr@prohr.ai`)
+   - **Password:** `password123`
+4. Create one job in **Jobs**.
+5. Upload resumes for that job.
+6. Visit **Approvals** and move the pipeline through approvals.
+7. Check **Audit Trail** to see a timeline of all actions and decisions.
 
 Expected result: you should see a full hiring pipeline from job creation to final decision, with human approval gates in between.
 

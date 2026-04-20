@@ -97,7 +97,7 @@ class Settings(BaseSettings):
 
     # Demo accounts (see app/main.py startup seeding)
     seed_demo_users: bool = Field(
-        default=False,
+        default=True,
         description="When True, seed admin@prohr.ai / hr@prohr.ai if missing (requires DEMO_* passwords).",
     )
     allow_seed_demo_users_outside_dev: bool = Field(
