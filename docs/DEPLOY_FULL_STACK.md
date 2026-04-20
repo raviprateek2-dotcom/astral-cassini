@@ -37,14 +37,35 @@ This is a full product deploy; only the **hosting** is split across two services
 
 ---
 
-## Option C — Split cloud: backend on Render / Railway / Fly.io + UI on same or Vercel
+## Option C — Split cloud: backend on Render / Railway + UI on Vercel
 
-Same as **Option B**, but the API is a **Web Service** built from **`backend/Dockerfile`**. After the API has a stable URL, configure the frontend build/runtime env vars as above.
+### 1. Backend on [Render.com](https://render.com)
+1. Create a **New > Web Service**.
+2. Connect your GitHub repository.
+3. **Root Directory**: `backend`
+4. **Environment Variables**:
+   - `OPENAI_API_KEY`: (Your key)
+   - `SECRET_KEY`: (32+ character random string)
+   - `FRONTEND_URL`: `https://YOUR_APP.vercel.app` (The URL your team will visit)
+   - `AUTH_COOKIE_SECURE`: `true`
+   - `AUTH_COOKIE_SAMESITE`: `none`
+   - `SEED_DEMO_USERS`: `true`
+   - `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`: `true`
+5. **Persistent Disk**: Go to **Disk** settings and add a disk mounted at `/app/data` (1GB). This ensures your resumes and users aren't deleted on restart.
 
-- **Render:** create a **Web Service** → Docker, root directory **`backend`**, set env vars in the dashboard; attach a **persistent disk** on `/app/data` if you keep SQLite/FAISS on disk.
-- **Railway / Fly.io:** add a service from **`backend/`** with the same Dockerfile; set **`PORT`** / listen host per their docs.
+### 2. Frontend on [Vercel.com](https://vercel.com)
+1. Create a **New Project**.
+2. Connect your GitHub repository.
+3. **Root Directory**: `frontend`
+4. **Environment Variables**:
+   - `NEXT_PUBLIC_API_URL`: `https://your-backend.onrender.com` (Your Render URL)
+   - `NEXT_PUBLIC_WS_URL`: `wss://your-backend.onrender.com` (Your Render URL with `wss://`)
+5. Click **Deploy**.
 
 ---
+
+## Important Security Note
+Because the UI and API are on different domains, the `AUTH_COOKIE_SAMESITE=none` and `AUTH_COOKIE_SECURE=true` settings are **mandatory**. Without them, browsers will block the session cookie and login will fail.
 
 ## What not to expect from Vercel alone
 

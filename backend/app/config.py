@@ -103,8 +103,8 @@ class Settings(BaseSettings):
     allow_seed_demo_users_outside_dev: bool = Field(
         default=False,
         description=(
-            "Dangerous: allow demo seeding when APP_ENV is not development/dev/local. "
-            "Use only for private demos; never on a public production API."
+            "Allow demo seeding when APP_ENV is production/staging. "
+            "Required for first-time setup on Render/Railway if you want the admin@prohr.ai account created automatically."
         ),
     )
 
