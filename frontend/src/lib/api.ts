@@ -55,7 +55,8 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
     (response) => response.data,
     (error) => {
-        if (error.response?.status === 401 && typeof window !== 'undefined') {
+        const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || process.env.NEXT_PUBLIC_DEMO_MODE === "1";
+        if (!isDemoMode && error.response?.status === 401 && typeof window !== 'undefined') {
             localStorage.removeItem("user");
             sessionStorage.removeItem("ws_token");
             // Stay on login (wrong-password 401) or landing; otherwise send users to the landing page.

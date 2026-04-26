@@ -47,24 +47,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const initializeAuth = async () => {
-            if (isFrontendDemoMode()) {
-                let fromStore = meResponseFromLocalStorage();
-                if (!fromStore) {
-                    // Auto-provision a demo user — no login needed at all
-                    fromStore = {
-                        id: 0,
-                        email: "admin@prohr.ai",
-                        full_name: "Demo Admin",
-                        role: "admin",
-                        department: "Engineering",
-                        is_active: true,
-                    };
-                    localStorage.setItem("user", JSON.stringify(fromStore));
-                }
-                setUser(fromStore);
+            // 1. Always check localStorage first — trust cached session immediately
+            const cached = meResponseFromLocalStorage();
+            if (cached) {
+                setUser(cached);
                 setLoading(false);
                 return;
             }
+
+            // 2. Demo mode: auto-provision a guest user, no API call needed
+            if (isFrontendDemoMode()) {
+                const demoUser: MeResponse = {
+                    id: 0,
+                    email: "admin@prohr.ai",
+                    full_name: "Demo Admin",
+                    role: "admin",
+                    department: "Engineering",
+                    is_active: true,
+                };
+                localStorage.setItem("user", JSON.stringify(demoUser));
+                setUser(demoUser);
+                setLoading(false);
+                return;
+            }
+
+            // 3. No cached user and not demo mode — verify with backend
             try {
                 const me = await api.me();
                 setUser(me);
@@ -81,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         initializeAuth();
     }, [pathname, router]);
+
 
     const logout = () => {
         if (!isFrontendDemoMode()) {

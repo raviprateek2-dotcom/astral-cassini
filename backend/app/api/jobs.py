@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, RequireHR, require_job_access
-from app.models.db_models import User, Job
+from app.models.db_models import User
 from app.core.orchestrator import (
     start_workflow,
     get_workflow_status,
