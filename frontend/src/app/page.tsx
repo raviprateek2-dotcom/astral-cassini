@@ -185,7 +185,7 @@ export default function LandingPage() {
                                 Go to Dashboard
                             </Link>
                         ) : (
-                            <Link className="btn-primary" href="/login" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                            <Link className="btn-primary" href="/dashboard" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
                                 Launch Control Center
                             </Link>
                         )}

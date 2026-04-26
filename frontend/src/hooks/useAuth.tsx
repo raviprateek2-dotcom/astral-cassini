@@ -48,11 +48,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const initializeAuth = async () => {
             if (isFrontendDemoMode()) {
-                const fromStore = meResponseFromLocalStorage();
-                setUser(fromStore);
-                if (!fromStore && pathname !== "/login" && pathname !== "/") {
-                    router.replace("/login");
+                let fromStore = meResponseFromLocalStorage();
+                if (!fromStore) {
+                    // Auto-provision a demo user — no login needed at all
+                    fromStore = {
+                        id: 0,
+                        email: "admin@prohr.ai",
+                        full_name: "Demo Admin",
+                        role: "admin",
+                        department: "Engineering",
+                        is_active: true,
+                    };
+                    localStorage.setItem("user", JSON.stringify(fromStore));
                 }
+                setUser(fromStore);
                 setLoading(false);
                 return;
             }
