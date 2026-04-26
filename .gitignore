@@ -12,6 +12,8 @@ out/
 # Python
 __pycache__/
 *.pyc
+*.pyo
+.mypy_cache/
 
 # Local config
 .vscode/*
@@ -27,15 +29,38 @@ backend/venv/
 backend/.pytest_cache/
 backend/.env
 backend/*.db
+backend/*.db-shm
+backend/*.db-wal
 backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
 backend/data/e2e.db
+backend/data/faiss_index/
 # Generated dataset bundles (see backend/scripts/export_dataset.py)
 backend/data/exports/
 backend/*.log
 
+# Backend scratch / debug scripts (kept locally, not for submission)
+backend/debug_api.py
+backend/inspect_db.py
+backend/repair_db.py
+backend/migrate_db.py
+backend/seed_users.py
+backend/reset.py
+backend/test_api.py
+backend/test_agents_full.py
+backend/test_graph_standalone.py
+backend/e2e_full_test.py
+backend/e2e_full_automation.py
+backend/e2e_alternative_paths_test.py
+backend/e2e_*.txt
+backend/test_output.txt
+backend/prohr.db
+
 # Frontend
 frontend/node_modules/
 frontend/.next/
+frontend/.env.local
 frontend/dist/
 frontend/build/
 frontend/out/
