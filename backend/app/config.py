@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     )
 
     # Auth session cookie (browser)
+    auth_disabled: bool = Field(
+        default=False,
+        description=(
+            "If True, bypass API auth checks and expose all routes as an implicit admin user. "
+            "Use only for trusted local/internal environments."
+        ),
+    )
     auth_cookie_secure: bool = Field(
         default=False,
         description="Set True in production over HTTPS so browsers send Set-Cookie with Secure.",

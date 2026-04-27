@@ -99,6 +99,17 @@ async def login(
     response: Response,
 ):
     """Login and return a JWT access token."""
+    if settings.auth_disabled:
+        return TokenResponse(
+            access_token="auth-disabled",
+            user={
+                "id": 0,
+                "email": "open@prohr.ai",
+                "full_name": "Open Access",
+                "role": "admin",
+            },
+        )
+
     user = db.query(User).filter(User.email == form.username).first()
     if user is None:
         raise HTTPException(

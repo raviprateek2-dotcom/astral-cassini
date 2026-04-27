@@ -1,308 +1,181 @@
 # PRO HR - Autonomous Multi-Agent Recruitment Ecosystem
 
-A multi-agent recruitment platform with a **deterministic Python orchestrator** (LangChain / OpenAI for LLM steps), **human-in-the-loop gates**, and **FAISS-backed RAG** for resume search.
+PRO HR is a full-stack recruitment platform with:
 
-## What this is (plain English)
+- **Frontend:** Next.js 16 (`frontend/`)
+- **Backend:** FastAPI + Python 3.11 (`backend/`)
+- **Core workflow:** deterministic orchestration, FAISS-backed resume retrieval, approvals, and audit trail
 
-PRO HR is a hiring assistant platform for teams that want to move faster without losing control.
-It helps you:
+This guide is optimized for people who download the repository ZIP and want it running locally quickly and reliably.
 
-- Create clearer job descriptions
-- Search and score resumes with AI
-- Keep humans in charge at important approval steps
-- Track every decision in an audit trail
+## Run From Downloaded ZIP (No Git Required)
 
-If you are non-technical, think of this as a "smart hiring workflow" that combines automation + human approval.
+### 1) Extract and open terminal
 
-## How it works in 4 simple steps
+1. Download ZIP from GitHub.
+2. Extract it.
+3. Open terminal in the extracted folder (repo root, where this file is).
 
-1. A recruiter creates a new job opening.
-2. The system drafts/refines the job description and finds matching resumes.
-3. Candidates are scored with clear reasons and gaps.
-4. Humans approve key checkpoints before final hiring decisions.
+### 2) Install prerequisites
 
-## Quick demo (2 minutes)
+- Python **3.11**
+- Node.js **20+** (Node 22 works)
+- npm
 
-1. Start backend and frontend using the **Quick Start** section below.
-2. Open `http://localhost:3000`.
-3. Log in using the default demo credentials:
-   - **Email:** `admin@prohr.ai` (or `hr@prohr.ai`)
-   - **Password:** `password123`
-4. Create one job in **Jobs**.
-5. Upload resumes for that job.
-6. Visit **Approvals** and move the pipeline through approvals.
-7. Check **Audit Trail** to see a timeline of all actions and decisions.
+### 3) Bootstrap once
 
-Expected result: you should see a full hiring pipeline from job creation to final decision, with human approval gates in between.
+#### Windows (PowerShell)
 
-## Start here based on your role
-
-- **Recruiter / Product demo**: Read `Quick demo`, then `Dashboard Pages`
-- **Developer**: Read `Quick Start`, `Environment variables`, and `Architecture`
-- **Maintainer / Release owner**: Read `Release Process` and `Project Closeout`
-
-## Architecture
-
-```
-Frontend (Next.js 16)  ->  FastAPI Backend  ->  Orchestrator (state machine)
-                                                    |
-                                            7 pipeline agents (see below)
-                                                    |
-                                    FAISS vector index (LangChain) + SQLite/Postgres
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-local.ps1
 ```
 
-The runtime workflow is **not** LangGraph-driven: `backend/app/core/orchestrator.py` advances stages and invokes agent nodes until a HITL breakpoint or completion. **LangGraph** is optional for local experiments (`backend/requirements-dev.txt`, e.g. `test_graph_standalone.py`).
-
-**Deeper technical map:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
-**Implementation / testing progress:** [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md)
-
-**Roadmap:** [docs/HIGH_VALUE_ROADMAP.md](docs/HIGH_VALUE_ROADMAP.md) (Phases **A-C** done). **Changes:** [CHANGELOG.md](CHANGELOG.md).
-
-### Pipeline agents (wired in the orchestrator)
-
-
-| #   | Agent                      | Role                                                                                                                                        |
-| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **JD Architect**           | Drafts bias-aware job descriptions                                                                                                          |
-| 2   | **The Liaison**            | Human-in-the-loop approval gatekeeper (JD, shortlist, hire)                                                                                 |
-| 3   | **The Scout**              | Semantic resume search over the FAISS index (RAG)                                                                                           |
-| 4   | **The Screener**           | Gap analysis and scoring                                                                                                                    |
-| 5   | **Outreach**               | Personalized candidate outreach emails                                                                                                      |
-| 6   | **Response Tracker**       | Engagement-stage follow-up and conversion tracking                                                                                          |
-| 7   | **Hiring Ops Coordinator** | Post-shortlist automation: scheduling, interview assessment (LLM), deterministic hire decision; **Offer Generator** runs at the offer stage |
-
-
-## Quick Start
-
-### Clone this repository
-
-Canonical remote:
-
-```text
-https://github.com/raviprateek2-dotcom/astral-cassini
-```
+#### macOS/Linux
 
 ```bash
-git clone https://github.com/raviprateek2-dotcom/astral-cassini.git
-cd astral-cassini
+bash scripts/bootstrap-local.sh
 ```
 
-**Fresh workstation:** copy env templates before first run — `backend/.env.example` → `backend/.env`, and `frontend/.env.example` → `frontend/.env.local` — then edit secrets (`SECRET_KEY`, `OPENAI_API_KEY`). Full automated checks from repo root: `bash scripts/verify-all.sh` (Linux/macOS/Git Bash) or `powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1` (Windows). For end-to-end UI validation, use [docs/PIPELINE-MANUAL-TEST-CHECKLIST.md](docs/PIPELINE-MANUAL-TEST-CHECKLIST.md).
+The bootstrap scripts:
 
-### Prerequisites
+- create `backend/.env` from `backend/.env.example` if missing
+- create `frontend/.env.local` from `frontend/.env.example` if missing
+- install backend dependencies
+- install frontend dependencies
 
-- **Python 3.11.x** (matches CI and `backend/Dockerfile`; use `.python-version` with pyenv). Other versions are not validated in CI.
-- **Node.js 20+** (Next.js 16 supports this); **CI uses Node 22** (see `frontend/.nvmrc` if you use nvm).
-- OpenAI API Key
+### 4) Start app (two terminals)
 
-### Backend Setup
+#### Terminal A - backend
 
-```bash
+```powershell
 cd backend
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env: SECRET_KEY (32+ chars), OPENAI_API_KEY, and optionally FRONTEND_URL / CORS
-uvicorn app.main:app --reload
+py -3.11 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Optional LangGraph experiments: `pip install -r requirements-dev.txt` (not required for the API or CI).
+If `py -3.11` is unavailable, use `python -m uvicorn ...` with Python 3.11.
 
-Quick tests (from `backend/`, set `SECRET_KEY` as in CI): `pytest -m "unit or api" -q` for a fast slice; `**pytest tests -q**` matches the backend CI job. CI also runs an **informational** full-app `mypy` report (`mypy-full.ini`) that does not fail the pipeline - use it to track typing debt.
+#### Terminal B - frontend
 
-Backend runs at **[http://localhost:8000](http://localhost:8000)** (API docs: `/docs`)
-
-### Frontend Setup
-
-The root `**package.json`** / `**package-lock.json**` are minimal so CI and other automation can detect **npm** at the repo root. All app dependencies and `**next`** live under `**frontend/**`.
-
-#### Full stack (frontend + backend)
-
-Vercel only hosts the **Next.js** app. The **FastAPI** backend must run elsewhere (VM, Render, Railway, Fly.io, etc.). See **[docs/DEPLOY_FULL_STACK.md](docs/DEPLOY_FULL_STACK.md)** for **Docker Compose on one server**, **split deploy (API + Vercel UI)**, and what Vercel cannot replace.
-
-#### Vercel
-
-1. Import this Git repository.
-2. **Root Directory (pick one):**
-  - **Recommended:** **Project → Settings → Build and Deployment → Root Directory** → `**frontend`** → **Save**. Vercel then uses `**frontend/package.json`** (which already lists `**next**`).
-  - **Alternative (repo root as project root):** Leave Root Directory empty or `**.`**. The repo includes `**vercel.json**` (install/build under `**frontend/**`) and a root `**package.json**` marker with `**next**` so Vercel’s framework detector does not show *“No Next.js version detected”*.
-3. Add env vars (see `**frontend/.env.example*`*) such as `**NEXT_PUBLIC_API_URL**` for your deployed API. For a **passwordless UI-only demo** (no API login), set `**NEXT_PUBLIC_DEMO_MODE=1**` — see the environment table (not for real production).
-4. Push to the branch Vercel is connected to, or click **Deploy** in the Vercel dashboard.
-
-**Demo logins after deploy:** demo users are **not** created when `APP_ENV` is production unless you explicitly set `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV=true` together with `SEED_DEMO_USERS=true` and strong `DEMO_ADMIN_PASSWORD` / `DEMO_HR_PASSWORD` (see `.env.example`). Use emails `**admin@prohr.ai`** or `**hr@prohr.ai**` with the passwords you configured (not the old `admin123` from local-only scripts unless you set that as `DEMO_ADMIN_PASSWORD`). If the browser calls a **separate API host** (`NEXT_PUBLIC_API_URL`), set backend `**FRONTEND_URL`** and `**CORS_EXTRA_ORIGINS**` to your Vercel origin, and use `**AUTH_COOKIE_SECURE=true**` with `**AUTH_COOKIE_SAMESITE=none**` so session cookies attach to cross-site API requests.
-
-**Other deploy paths:** run `**docker compose up --build`** for a full stack on your own host (see **Docker Compose** below).
-
-#### GitHub Pages
-
-A replacement workflow now deploys a static export from `frontend/` to GitHub Pages (`.github/workflows/nextjs.yml`).
-
-1. In GitHub, open **Settings -> Pages** and set **Build and deployment** to **GitHub Actions**.
-2. In **Settings -> Secrets and variables -> Actions -> Variables**, define:
-  - `PAGES_NEXT_PUBLIC_API_URL` (required; your deployed backend base URL, e.g. `https://api.example.com`)
-  - `PAGES_NEXT_PUBLIC_WS_URL` (optional; your deployed websocket URL, e.g. `wss://api.example.com`)
-3. Push to `master`/`main` (or run the workflow manually) and GitHub will publish to:
-  - `https://<owner>.github.io/<repo>/`
-
-Notes:
-
-- GitHub Pages serves static files only; middleware/edge auth redirects are disabled for the Pages build.
-- For full production behavior (middleware + rewrites), use Vercel or Docker deployment.
-
-```bash
+```powershell
 cd frontend
-cp .env.example .env.local
-npm install
-npm run dev
+npm run dev -- -p 3000
 ```
 
-Dashboard runs at **[http://localhost:3000](http://localhost:3000)**
+### 5) Open in browser
 
-### Environment variables
+- App: `http://localhost:3000`
+- API docs: `http://127.0.0.1:8000/docs`
 
+## Authentication Behavior (Local)
 
-| Area     | Variable                                      | Notes                                                                                                                                                                                                                |
-| -------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backend  | `SECRET_KEY`                                  | **Required.** 32+ character random string for JWT signing.                                                                                                                                                           |
-| Backend  | `OPENAI_API_KEY`                              | Required for agents and embeddings.                                                                                                                                                                                  |
-| Backend  | `LLM_MODEL` / `EMBEDDING_MODEL`               | Optional overrides (defaults in `app/config.py`).                                                                                                                                                                    |
-| Backend  | `FRONTEND_URL`                                | Origin of the Next app; included in CORS allow list.                                                                                                                                                                 |
-| Backend  | `CORS_EXTRA_ORIGINS`                          | Optional comma-separated origins (e.g. staging).                                                                                                                                                                     |
-| Backend  | `AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SAMESITE` | Use `secure=true` and appropriate `samesite` in production over HTTPS.                                                                                                                                               |
-| Backend  | `WS_TICKET_EXPIRE_MINUTES`                    | Lifetime for WS tickets used in `/ws/{job_id}?token=...`.                                                                                                                                                            |
-| Backend  | `WS_ALLOW_LEGACY_BROWSER_TOKEN`               | Legacy fallback for full JWT in WS token. Default is **false**; keep false in production.                                                                                                                            |
-| Backend  | `SEED_DEMO_USERS`                             | When `true`, seeds `admin@prohr.ai` / `hr@prohr.ai` if missing (requires `DEMO_ADMIN_PASSWORD` and `DEMO_HR_PASSWORD`, each 8+ chars). By default this runs only when `APP_ENV` is `development`, `dev`, or `local`. |
-| Backend  | `ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`           | Set `true` only for **private** deployed demos so seeding runs when `APP_ENV` is production/staging. **Never** on a public production API.                                                                           |
-| Frontend | `NEXT_PUBLIC_API_URL`                         | If empty, Axios uses same-origin `/api` (Next rewrites). If set, browser calls this origin (must be CORS-allowed).                                                                                                   |
-| Frontend | `BACKEND_URL`                                 | Next **server** rewrite target (local dev: `http://127.0.0.1:8000`; Docker build: `http://backend:8000`).                                                                                                            |
-| Frontend | `NEXT_PUBLIC_WS_URL`                          | WebSocket URL for live updates (often `ws://localhost:8000` when the API publishes port 8000).                                                                                                                       |
-| Frontend | `NEXT_PUBLIC_DEMO_MODE`                       | If `1` or `true`, login skips the API and the shell opens without a session cookie (**insecure** — private demos only; see `frontend/src/lib/demoMode.ts`).                                                         |
-| CI       | `SECRET_KEY`                                  | GitHub Actions sets this for `pytest`; copy the pattern for local test runs if needed.                                                                                                                               |
+### Open access by default
 
+The backend template enables:
 
-**CI:** Backend runs **pytest** in three steps (`tests/unit` + `tests/api`, then `tests/integration`, then `tests/e2e`). Frontend runs **lint**, **Jest**, **build**, and **Playwright** (`npm run test:e2e`). Manual HTTP scripts (`backend/e2e_*.py`) are **not** in CI; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing).
-
-### Observability endpoints
-
-- `**GET /api/health`** — includes in-memory observability counters under `observability`.
-- `**GET /api/analytics/observability**` — JSON counters, **admin-only**.
-- `**GET /api/analytics/metrics`** — Prometheus-style plaintext counters, **admin-only**.
-- Request tracing: backend adds `**x-request-id`** to responses and logs request completion with duration.
-
-### WS migration checklist
-
-- Set `WS_ALLOW_LEGACY_BROWSER_TOKEN=false` in staging and production.
-- Verify: login -> open a job page -> live updates stream over WS.
-- Keep rollback path documented: temporarily set `WS_ALLOW_LEGACY_BROWSER_TOKEN=true` only if an older client must be supported.
-
-### Resume uploads (API)
-
-The dashboard uses `**POST /api/jobs/{job_id}/resumes**` (PDF only, sourcing/screening). `**POST /api/resumes/upload**` is **deprecated** for product use (still available for scripts; see `Deprecation` / `Sunset` headers and [CHANGELOG.md](CHANGELOG.md)). Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#resume-indexing-two-post-routes).
-
-### Docker Compose
-
-Prerequisites: `**backend/.env`** with at least `**SECRET_KEY**`, `**OPENAI_API_KEY**`, and `**FRONTEND_URL=http://localhost:3000**` (matches the URL users open; required for CORS and sensible cookie behavior).
-
-**Default (recommended)** - same-origin API via Next rewrites:
-
-```bash
-docker compose up --build
+```env
+AUTH_DISABLED=true
 ```
 
-Open **[http://localhost:3000](http://localhost:3000)**. The UI calls `**/api/...`** on port 3000; Next proxies to the `**backend**` service. WebSockets still use `**ws://localhost:8000**` from the browser to the published API port.
+This means API routes are accessible locally without login/password checks.
 
-**Alternate** - browser talks directly to port 8000 for REST:
+### Re-enable strict auth later
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.direct-api.yml up --build
+Set in `backend/.env`:
+
+```env
+AUTH_DISABLED=false
 ```
 
-Details, env inventory, and production patterns: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#environment--deployment-inventory-phase-a).
+Then restart backend.
 
-## Dashboard Pages
+## Quick End-to-End Walkthrough
 
-- **Dashboard** - Overview metrics, active pipelines, agent roster
-- **Jobs** - Create job requisitions, view generated JDs
-- **Candidates** - Scored candidate cards with gap analysis
-- **Approvals** - HITL gates for JD, shortlist, and hire decisions
-- **Interviews** - Scheduled interviews and competency assessments
-- **Decisions** - Final hire/no-hire with explainable reasoning
-- **Audit Trail** - Timeline of all agent actions and decisions
+1. Open `http://localhost:3000`.
+2. Click **Launch Control Center**.
+3. Go to **Jobs**, create a job.
+4. Upload resumes.
+5. Check **Approvals**, **Decisions**, and **Audit** pages.
 
-## Key Features
+Expected: pipeline data appears and pages are accessible without auth blockers in local open-access mode.
 
-- **Bias Mitigation** - Guardrails in agent prompts and audit emphasis
-- **Explainable Scoring** - Structured match reasoning and competency gaps
-- **HITL Gates** - Three human approval checkpoints in the pipeline
-- **RAG Search** - FAISS + embeddings for semantic resume retrieval (see `backend/app/rag/embeddings.py`)
-- **Audit Trail** - Decision history with agent attribution
+## Verification Commands
 
-## Tech Stack
+### Full project verification
 
-- **Orchestration**: Custom Python orchestrator (`app/core/orchestrator.py`) with staged pipeline
-- **LLM**: OpenAI (default model from settings, e.g. `gpt-4o`)
-- **Backend**: FastAPI + Python 3.11
-- **Vector search**: FAISS via LangChain (`langchain_community.vectorstores.FAISS`)
-- **Frontend**: Next.js 16 + TypeScript + Tailwind CSS
-- **Real-time**: WebSocket for live pipeline updates
-
-## Release Process
-
-Before tagging/deploying, run the checklist in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
-
-- Required: green backend + frontend CI jobs.
-- Informational: mypy-full-report, backend-security-audit, frontend-security-audit (non-blocking trend checks).
-- Always include rollback notes for auth/deploy flags (for example WS_ALLOW_LEGACY_BROWSER_TOKEN).
-
-## Project Closeout (Stability)
-
-Use this as the final runbook before handoff.
-
-### 1) Runtime stability checks (local)
-
-From repo root:
-
-```bash
-bash scripts/verify-all.sh
-```
-
-Windows PowerShell:
+#### Windows
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1
 ```
 
-Expected outcome:
+#### macOS/Linux
 
-- Backend lint/type/tests pass.
-- Frontend lint/tests/build pass.
-- Playwright smoke/full-stack flows pass.
+```bash
+bash scripts/verify-all.sh
+```
 
-### 2) Pipeline health checks (manual)
+### Individual checks
 
-- Login as an HR user and create one pipeline.
-- Verify stage movement:
-  - `jd_review` -> `shortlist_review` -> `interviewing` -> `hire_review` -> `completed`
-- Confirm HITL gates at JD/shortlist/hire work as expected.
-- Confirm Kanban card click opens `Audit Trail` for that pipeline.
-- Confirm approved/completed pipelines no longer appear in pending approvals.
+- Backend: `bash scripts/verify-backend.sh` or `.\scripts\verify-backend.ps1`
+- Frontend: `bash scripts/verify-frontend.sh` or `.\scripts\verify-frontend.ps1`
 
-### 3) Security and environment hardening
+## Docker Compose (Alternative Local Run)
 
-- Keep `WS_ALLOW_LEGACY_BROWSER_TOKEN=false` outside emergency rollback windows.
-- Use a strong `SECRET_KEY` (32+ chars) and set `AUTH_COOKIE_SECURE=true` for HTTPS deployments.
-- Keep `.env`, local DB files, and generated auth state out of git (`.gitignore` already covers these).
-- Rotate shared API credentials before production handoff.
+From repo root:
 
-### 4) CI/CD completion criteria
+```bash
+docker compose up --build
+```
 
-- `secret-scan`, `backend`, and `frontend` jobs must be green.
-- Optional audit jobs (`mypy-full-report`, dependency audits) should be reviewed and tracked.
-- Merge only from a passing commit SHA.
+Then open:
 
-### 5) Ongoing maintenance cadence
+- `http://localhost:3000`
+- `http://127.0.0.1:8000/docs`
 
-- Weekly: review dependency and security audit reports.
-- Per feature: add/adjust backend tests and Playwright coverage.
-- Per release: update `CHANGELOG.md` and rerun `scripts/verify-all.*`.
-- Monthly: validate live walkthrough path (create -> invite -> select -> offer -> completed).
+If Docker fails with engine/pipe errors, start Docker Desktop first.
 
+## Project Structure
+
+- `backend/` - FastAPI app, orchestrator, agents, backend tests
+- `frontend/` - Next.js app, UI pages/components, frontend tests
+- `docs/` - architecture, deployment, checklists, runbooks
+- `scripts/` - bootstrap and verification scripts
+- `.github/workflows/` - CI workflows
+
+## Deployment Summary
+
+- **Vercel:** frontend only (recommended for UI hosting)
+- **GitHub Pages:** static frontend only
+- **Full stack:** VM/containers or split deploy (frontend + separate backend)
+
+See `docs/DEPLOY_FULL_STACK.md` for production deployment options.
+
+## Troubleshooting
+
+### Backend imports or startup errors
+
+- Ensure Python 3.11 is used.
+- Re-run bootstrap script.
+
+### Frontend loads but API calls fail
+
+- Confirm backend is running on `127.0.0.1:8000`.
+- Check `frontend/.env.local` (`BACKEND_URL`).
+
+### Port already in use
+
+- Frontend: `npm run dev -- -p 3001`
+- Backend: `--port 8001` and update `BACKEND_URL`
+
+### Vercel says "No Next.js version detected"
+
+- Recommended project root directory on Vercel: `frontend/`
+- Root `package.json` and `vercel.json` are included for root-mode fallback
+
+## Additional Documentation
+
+- `docs/ARCHITECTURE.md`
+- `docs/IMPLEMENTATION_PROGRESS.md`
+- `docs/DEPLOY_FULL_STACK.md`
+- `docs/PIPELINE-MANUAL-TEST-CHECKLIST.md`
+- `docs/RELEASE_CHECKLIST.md`

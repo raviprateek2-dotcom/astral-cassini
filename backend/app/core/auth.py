@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 import bcrypt
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.core.database import get_db
 from app.models.db_models import Job, User
 
@@ -22,12 +23,27 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
 WS_TOKEN_AUDIENCE = "prohr-ws"
 
-if len(SECRET_KEY) < 32 or not secrets.compare_digest(SECRET_KEY, SECRET_KEY.strip()):
+if (not settings.auth_disabled) and (
+    len(SECRET_KEY) < 32 or not secrets.compare_digest(SECRET_KEY, SECRET_KEY.strip())
+):
     raise RuntimeError(
         "Invalid SECRET_KEY. Set a non-empty, 32+ character secret in environment."
     )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+
+def _auth_bypass_user() -> User:
+    """Synthetic admin user when auth is globally disabled."""
+    return User(
+        id=0,
+        email="open@prohr.ai",
+        full_name="Open Access",
+        hashed_password="",
+        role="admin",
+        department="Engineering",
+        is_active=True,
+    )
 
 
 # --- Password helpers ---
@@ -116,6 +132,9 @@ def get_current_user(
     db: Annotated[Session, Depends(get_db)],
 ):
     """Dependency — resolves the JWT token to a User ORM object."""
+    if settings.auth_disabled:
+        return _auth_bypass_user()
+
     cookie_token = request.cookies.get("access_token")
     effective_token = token or cookie_token
     if not effective_token:

@@ -96,7 +96,10 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     - `pong`            — heartbeat response
     - `stream_token`    — JD streaming tokens (optional)
     """
+    auth_bypass = settings.auth_disabled
     token = websocket.query_params.get("token")
+    if auth_bypass:
+        token = token or "auth-disabled-bypass"
     if not token:
         increment("ws_connect_rejected")
         await websocket.close(code=4401, reason="Missing token")
@@ -106,10 +109,13 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
         user: User | None = None
         job = db.query(Job).filter(Job.job_id == job_id).first()
 
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=WS_TOKEN_AUDIENCE)
-        except JWTError:
-            payload = None
+        if auth_bypass:
+            payload = {"sub": "0", "job_id": job_id, "aud": WS_TOKEN_AUDIENCE}
+        else:
+            try:
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], audience=WS_TOKEN_AUDIENCE)
+            except JWTError:
+                payload = None
 
         if payload is not None:
             if payload.get("job_id") != job_id:
@@ -117,8 +123,18 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
                 await websocket.close(code=4403, reason="Ticket job mismatch")
                 return
             uid = payload.get("sub")
-            user = db.get(User, int(uid)) if uid else None
-            if user and user.is_active and job and user_may_subscribe_job_ws(user, job):
+            user = db.get(User, int(uid)) if uid and not auth_bypass else None
+            if auth_bypass:
+                user = User(
+                    id=0,
+                    email="open@prohr.ai",
+                    full_name="Open Access",
+                    hashed_password="",
+                    role="admin",
+                    department="Engineering",
+                    is_active=True,
+                )
+            if user and user.is_active and job and (auth_bypass or user_may_subscribe_job_ws(user, job)):
                 pass
             else:
                 user = None
