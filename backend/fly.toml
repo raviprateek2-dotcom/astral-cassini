@@ -1,0 +1,61 @@
+# fly.toml - Fly.io deployment configuration for PRO HR Backend
+# Deploy with: flyctl deploy (from the /backend directory)
+
+app = "pro-hr-backend"
+primary_region = "sin" # Singapore — closest to India
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV        = "production"
+  APP_HOST       = "0.0.0.0"
+  APP_PORT       = "8000"
+  PYTHONUNBUFFERED = "1"
+  ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV = "true"
+
+# Secrets (set via: flyctl secrets set KEY=value)
+# REQUIRED:
+#   flyctl secrets set SECRET_KEY="$(openssl rand -hex 32)"
+#   flyctl secrets set OPENAI_API_KEY="sk-..."
+#   flyctl secrets set DEMO_ADMIN_PASSWORD="..."
+#   flyctl secrets set DEMO_HR_PASSWORD="..."
+# OPTIONAL:
+#   flyctl secrets set SENDGRID_API_KEY="SG...."
+
+[http_service]
+  internal_port = 8000
+  force_https   = true
+  auto_stop_machines  = true   # spin down when idle (free tier)
+  auto_start_machines = true   # spin back up on first request
+  min_machines_running = 0     # allow full scale-to-zero
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+[[vm]]
+  size   = "shared-cpu-1x"  # free tier eligible
+  memory = "512mb"
+
+# Persistent volume for SQLite database + FAISS index
+[[mounts]]
+  source      = "pro_hr_data"
+  destination = "/app/data"
+
+[[services.tcp_checks]]
+  grace_period  = "10s"
+  interval      = "15s"
+  timeout       = "5s"
+  restart_limit = 3
+
+[checks]
+  [checks.health]
+    grace_period = "15s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/health"
+    port         = 8000
+    timeout      = "10s"
+    type         = "http"
