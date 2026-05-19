@@ -14,6 +14,12 @@ services:
         generateValue: true
       - key: DEMO_HR_PASSWORD
         generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
     disk:
       name: pro-hr-data
       mountPath: /app/data
@@ -27,6 +33,11 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     envVars:
       - key: BACKEND_URL
+        fromService:
+          type: web
+          name: pro-hr-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_BACKEND_URL
         fromService:
           type: web
           name: pro-hr-backend
