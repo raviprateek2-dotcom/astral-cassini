@@ -17,6 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.config import settings
 from app.models.state import SharedState, PipelineStage
 from app.api.websocket import stream_jd_tokens
+from app.agents.jd_critic import run_critic
 
 
 SYSTEM_PROMPT = """You are a deterministic, HR Job Description Architect & Talent Strategist.
@@ -62,8 +63,15 @@ async def jd_architect_node(state: SharedState) -> SharedState:
         streaming=True,
     )
 
-    # Build the prompt
-    user_prompt = f"""Draft a comprehensive job description for the following role.
+    max_attempts = 3
+    final_jd = ""
+    thought = ""
+    audit_summary = "Bias audit complete: 100% inclusive language verified."
+    critic_logs = []
+
+    for attempt in range(1, max_attempts + 1):
+        # Build the prompt
+        user_prompt = f"""Draft a comprehensive job description for the following role.
 Use this exact section order in Markdown:
 1) Role Summary
 2) Core Responsibilities
@@ -87,109 +95,127 @@ Role context:
 {chr(10).join(f'- {p}' for p in state.preferred_qualifications) if state.preferred_qualifications else '- None specified'}
 """
 
-    if state.human_feedback:
-        user_prompt += f"""
+        if state.human_feedback:
+            user_prompt += f"""
 
-**Revision Feedback from Hiring Manager:**
+**Revision Feedback from Hiring Manager / Critic:**
 {state.human_feedback}
 
 Please incorporate this feedback into the revised job description.
 """
 
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=user_prompt),
-    ]
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=user_prompt),
+        ]
 
-    job_description = ""
-    
-    # Check if we should use mock data (no valid API key)
-    if not settings.openai_api_key or "your-openai" in settings.openai_api_key:
-        reqs = "\n".join(f"- {r}" for r in state.requirements) if state.requirements else "- TBD"
-        prefs = (
-            "\n".join(f"- {p}" for p in state.preferred_qualifications)
-            if state.preferred_qualifications
-            else "- None specified"
-        )
-        mock_text = (
-            f"# {state.job_title}\n\n"
-            f"## Role Summary\n"
-            f"Join the {state.department} team to drive measurable hiring outcomes with deterministic execution.\n\n"
-            f"## Core Responsibilities\n"
-            f"- Own delivery outcomes for the role area.\n"
-            f"- Collaborate across hiring stakeholders and maintain quality standards.\n\n"
-            f"## Required Qualifications\n"
-            f"{reqs}\n\n"
-            f"## Preferred Qualifications\n"
-            f"{prefs}\n\n"
-            f"## Compensation & Benefits\n"
-            f"- Salary Range: {state.salary_range}\n"
-            f"- Standard company benefits package.\n\n"
-            f"## Interview Process\n"
-            f"- Recruiter screen\n"
-            f"- Technical/functional round\n"
-            f"- Final panel\n\n"
-            f"## Equal Opportunity Statement\n"
-            f"We are an equal opportunity employer and evaluate candidates based on skills and role fit."
-        )
+        job_description = ""
         
-        if state.human_feedback:
-            mock_text += f"\n\n## REVISION (Refined based on feedback)\nFEEDBACK: {state.human_feedback}"
-        
-        job_description = f"<thought_process>Mock reasoning</thought_process><job_description>{mock_text}</job_description><bias_audit>Mock audit</bias_audit>"
-        await asyncio.sleep(2)
-        if state.job_id:
-            for word in mock_text.split(" "):
-                await stream_jd_tokens(state.job_id, word + " ")
-                await asyncio.sleep(0.01)
-    else:
-        # Stream the response using LLM
-        try:
-            async for chunk in llm.astream(messages):
-                chunk_text = chunk.content if isinstance(chunk.content, str) else "".join(str(p) for p in chunk.content)
-                if chunk_text:
-                    job_description += chunk_text
-                    # Only stream the raw text, filter out XML tags roughly
-                    if ">" in chunk_text or "<" in chunk_text:
-                        continue
-                    if state.job_id:
-                        await stream_jd_tokens(state.job_id, chunk_text)
-        except Exception as e:
-            state.error = f"LLM Error: {str(e)}"
-            return state
+        # Check if we should use mock data (no valid API key)
+        if not settings.openai_api_key or "your-openai" in settings.openai_api_key:
+            reqs = "\n".join(f"- {r}" for r in state.requirements) if state.requirements else "- TBD"
+            prefs = (
+                "\n".join(f"- {p}" for p in state.preferred_qualifications)
+                if state.preferred_qualifications
+                else "- None specified"
+            )
+            mock_text = (
+                f"# {state.job_title}\n\n"
+                f"## Role Summary\n"
+                f"Join the {state.department} team to drive measurable hiring outcomes with deterministic execution.\n\n"
+                f"## Core Responsibilities\n"
+                f"- Own delivery outcomes for the role area.\n"
+                f"- Collaborate across hiring stakeholders and maintain quality standards.\n\n"
+                f"## Required Qualifications\n"
+                f"{reqs}\n\n"
+                f"## Preferred Qualifications\n"
+                f"{prefs}\n\n"
+                f"## Compensation & Benefits\n"
+                f"- Salary Range: {state.salary_range}\n"
+                f"- Standard company benefits package.\n\n"
+                f"## Interview Process\n"
+                f"- Recruiter screen\n"
+                f"- Technical/functional round\n"
+                f"- Final panel\n\n"
+                f"## Equal Opportunity Statement\n"
+                f"We are an equal opportunity employer and evaluate candidates based on skills and role fit."
+            )
+            
+            if state.human_feedback:
+                mock_text += f"\n\n## REVISION (Refined based on feedback)\nFEEDBACK: {state.human_feedback}"
+            
+            job_description = f"<thought_process>Mock reasoning</thought_process><job_description>{mock_text}</job_description><bias_audit>Mock audit</bias_audit>"
+            await asyncio.sleep(2)
+            if state.job_id:
+                for word in mock_text.split(" "):
+                    await stream_jd_tokens(state.job_id, word + " ")
+                    await asyncio.sleep(0.01)
+        else:
+            # Stream the response using LLM
+            try:
+                if state.job_id and attempt > 1:
+                    await stream_jd_tokens(state.job_id, f"\n\n--- CRITIC REJECTED (Attempt {attempt-1}). REWRITING ---\n\n")
 
-    # Extract structured content from the LLM response
-    thought = ""
-    final_jd = ""
-    audit_summary = "Bias audit complete: 100% inclusive language verified."
-    
-    thought_match = re.search(r"<thought_process>(.*?)</thought_process>", job_description, re.DOTALL)
-    jd_match = re.search(r"<job_description>(.*?)</job_description>", job_description, re.DOTALL)
-    audit_match = re.search(r"<bias_audit>(.*?)</bias_audit>", job_description, re.DOTALL)
-    
-    if thought_match:
-        thought = thought_match.group(1).strip()
-    if jd_match:
-        final_jd = jd_match.group(1).strip()
-    if audit_match:
-        audit_summary = audit_match.group(1).strip()
-    
-    # Fallback if parsing fails
-    if not final_jd:
-        final_jd = job_description
-        thought = "Strategically aligned JD with role requirements."
+                async for chunk in llm.astream(messages):
+                    chunk_text = chunk.content if isinstance(chunk.content, str) else "".join(str(p) for p in chunk.content)
+                    if chunk_text:
+                        job_description += chunk_text
+                        # Only stream the raw text, filter out XML tags roughly
+                        if ">" in chunk_text or "<" in chunk_text:
+                            continue
+                        if state.job_id:
+                            await stream_jd_tokens(state.job_id, chunk_text)
+            except Exception as e:
+                state.error = f"LLM Error: {str(e)}"
+                return state
+
+        # Extract structured content from the LLM response
+        thought_match = re.search(r"<thought_process>(.*?)</thought_process>", job_description, re.DOTALL)
+        jd_match = re.search(r"<job_description>(.*?)</job_description>", job_description, re.DOTALL)
+        audit_match = re.search(r"<bias_audit>(.*?)</bias_audit>", job_description, re.DOTALL)
+        
+        if thought_match:
+            thought = thought_match.group(1).strip()
+        if jd_match:
+            final_jd = jd_match.group(1).strip()
+        if audit_match:
+            audit_summary = audit_match.group(1).strip()
+        
+        # Fallback if parsing fails
+        if not final_jd:
+            final_jd = job_description
+            thought = "Strategically aligned JD with role requirements."
+
+        # RUN ACTOR-CRITIC EVALUATION
+        critique = await run_critic(final_jd, state.job_title)
+        
+        if critique.approved:
+            critic_logs.append(f"Attempt {attempt}: Critic approved with score {critique.score}/10.")
+            break
+        else:
+            critic_logs.append(f"Attempt {attempt}: Critic rejected (Score {critique.score}/10). Feedback: {critique.feedback}")
+            # Inject critic feedback for the next loop
+            if state.human_feedback:
+                state.human_feedback += f"\n\n[CRITIC FEEDBACK]: {critique.feedback}"
+            else:
+                state.human_feedback = f"[CRITIC FEEDBACK]: {critique.feedback}"
+            
+            if attempt == max_attempts:
+                critic_logs.append("Max attempts reached. Sending to Human Liaison as-is.")
+                break
 
     state.job_description = final_jd
     state.current_stage = PipelineStage.JD_REVIEW.value
     state.jd_approval = "pending"
     
     state.log_audit(
-        agent="JD Architect",
-        action="drafted_job_description",
+        agent="JD Architect & Critic",
+        action="drafted_and_critiqued_job_description",
         details=json.dumps({
             "thought_process": thought,
             "bias_audit": audit_summary,
-            "strategic_value": "Automated intake conversion & inclusivity alignment.",
+            "critic_logs": critic_logs,
+            "strategic_value": "Automated intake conversion, self-corrected via Actor-Critic.",
             "trade_offs": "Balanced technical depth with accessibility to broaden the talent pool."
         }),
         stage=PipelineStage.JD_DRAFTING.value

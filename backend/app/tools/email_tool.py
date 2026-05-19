@@ -12,6 +12,13 @@ from email.message import EmailMessage
 
 from app.config import settings
 
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail
+except ImportError:
+    SendGridAPIClient = None
+    Mail = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +41,26 @@ def _send_via_smtp(to_email: str, subject: str, body: str) -> dict:
         "subject": subject,
         "provider": "smtp",
         "message_id": f"smtp-{hash(to_email + subject) % 100000:05d}",
+    }
+
+
+def _send_via_sendgrid(to_email: str, subject: str, body: str) -> dict:
+    if not SendGridAPIClient:
+        raise ValueError("Sendgrid SDK not installed")
+    sg = SendGridAPIClient(settings.sendgrid_api_key)
+    message = Mail(
+        from_email=settings.smtp_from_email,
+        to_emails=to_email,
+        subject=subject,
+        html_content=body.replace("\n", "<br>")
+    )
+    sg.send(message)
+    return {
+        "status": "sent",
+        "to": to_email,
+        "subject": subject,
+        "provider": "sendgrid",
+        "message_id": f"sg-{hash(to_email + subject) % 100000:05d}",
     }
 
 
@@ -72,7 +99,13 @@ Best regards,
 HR Team — PRO HR
 """
     subject = f"Interview Invitation - {job_title}"
-    if settings.email_provider == "smtp" and settings.smtp_host:
+    
+    if settings.email_provider == "sendgrid" and settings.sendgrid_api_key:
+        try:
+            return _send_via_sendgrid(to_email, subject, email_body)
+        except Exception as e:
+            logger.exception(f"SendGrid send failed, falling back to mock: {e}")
+    elif settings.email_provider == "smtp" and settings.smtp_host:
         try:
             return _send_via_smtp(to_email, subject, email_body)
         except Exception:

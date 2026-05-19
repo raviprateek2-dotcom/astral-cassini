@@ -95,15 +95,7 @@ export default function LoginPage() {
     const currentStepIndex = steps.findIndex(s => s.key === step);
 
     return (
-        <div style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            position: "relative",
-            overflow: "hidden",
-            backgroundColor: "#020617"
-        }}>
+        <div className="login-container">
             {/* Background Effects */}
             <div className="matrix-bg" style={{ opacity: 0.3 }} />
             <div style={{
@@ -114,28 +106,17 @@ export default function LoginPage() {
                 pointerEvents: "none", zIndex: 0
             }} />
 
-            <div className="glass-card fade-in" style={{
-                position: "relative",
-                width: "100%",
-                maxWidth: 480,
-                padding: "60px 48px",
-                zIndex: 10,
-                display: "flex",
-                flexDirection: "column",
-                minHeight: 520,
-                border: "1px solid rgba(59,130,246,0.2)",
-                boxShadow: "0 0 50px rgba(0,0,0,0.5), 0 0 20px rgba(59,130,246,0.1)"
-            }}>
+            <div className="glass-card fade-in login-glass-card">
                 {/* Brand Header */}
                 <div style={{ textAlign: "center", marginBottom: 40 }}>
                     <div className="logo-container" style={{ marginBottom: 16 }}>
                         <span style={{ fontSize: "3rem" }}>🤖</span>
                     </div>
                     <h1 style={{ fontSize: "2rem", fontWeight: 900, letterSpacing: "-1px", margin: 0 }}>
-                        AGENT<span style={{ color: "var(--accent-blue)" }}>HIRE</span>
+                        PRO<span style={{ color: "var(--accent-blue)" }}> HR</span>
                     </h1>
                     <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: 8, letterSpacing: "1px", textTransform: "uppercase" }}>
-                        Multi-Agent Recruitment Ecosystem
+                        Autonomous Recruitment Ecosystem
                     </p>
                     {isFrontendDemoMode() && (
                         <p style={{
@@ -254,21 +235,7 @@ export default function LoginPage() {
                     )}
 
                     {step === "processing" && (
-                        <div className="fade-in" style={{
-                            background: "rgba(0,0,0,0.6)",
-                            borderRadius: 12,
-                            padding: 24,
-                            flex: 1,
-                            fontFamily: "'Fira Code', monospace",
-                            fontSize: "0.8rem",
-                            color: "#60a5fa",
-                            border: "1px solid rgba(59,130,246,0.2)",
-                            boxShadow: "inset 0 0 20px rgba(0,0,0,0.5)",
-                            minHeight: 180,
-                            overflowY: "auto",
-                            display: "flex",
-                            flexDirection: "column"
-                        }}>
+                        <div className="fade-in login-terminal">
                             {terminalLines.map((line, i) => (
                                 <div key={i} style={{ marginBottom: 10, lineHeight: 1.4 }}>
                                     <span style={{ color: "rgba(255,255,255,0.3)", marginRight: 8 }}>[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>

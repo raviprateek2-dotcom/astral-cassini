@@ -17,7 +17,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
 
 from app.config import settings
-from app.core.database import SessionLocal
+from app.core import database
 from app.core.observability import increment
 from app.core.auth import (
     ALGORITHM,
@@ -53,7 +53,7 @@ async def broadcast(job_id: str, event_type: str, data: dict) -> None:
 async def emit_pipeline_snapshot(job_id: str) -> None:
     """Push full workflow snapshot to all subscribers (call after DB state changes)."""
     try:
-        with SessionLocal() as db:
+        with database.SessionLocal() as db:
             from app.core.orchestrator import get_workflow_status
 
             status = get_workflow_status(db, job_id)
@@ -105,7 +105,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
         await websocket.close(code=4401, reason="Missing token")
         return
 
-    with SessionLocal() as db:
+    with database.SessionLocal() as db:
         user: User | None = None
         job = db.query(Job).filter(Job.job_id == job_id).first()
 
@@ -183,7 +183,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
     logger.info(f"WS connected: user={user.id}, job={job_id}, total={len(_connections[job_id])}")
 
     # Send initial state
-    with SessionLocal() as db:
+    with database.SessionLocal() as db:
         from app.core.orchestrator import get_workflow_status
         status = get_workflow_status(db, job_id)
     await websocket.send_json({
@@ -212,7 +212,7 @@ async def websocket_endpoint(websocket: WebSocket, job_id: str):
 
             # Infrequent per-client sync if client idle (broadcasts cover the hot path)
             if raw is None:
-                with SessionLocal() as db:
+                with database.SessionLocal() as db:
                     from app.core.orchestrator import get_workflow_status
 
                     current_status = get_workflow_status(db, job_id)

@@ -1,0 +1,162 @@
+.container {
+  background: #0a0e1a;
+  color: var(--text-primary);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.heroSection {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  text-align: center;
+}
+
+.ambientGlow {
+  position: absolute;
+  top: 20%;
+  left: 10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+  filter: blur(80px);
+  z-index: 0;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 900px;
+}
+
+.badgeEnterprise {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 8px 20px;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.heroTitle {
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 24px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroSubtitle {
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  line-height: 1.6;
+  max-width: 700px;
+  margin-inline: auto;
+}
+
+.actionButton {
+  padding: 18px 40px;
+  font-size: 1rem;
+  border-radius: 14px;
+  box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.5);
+}
+
+.sectionOverview {
+  padding: 100px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.glassCardOverview {
+  padding: 60px;
+  text-align: center;
+  margin-bottom: 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.gridStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.statCard {
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.gridSteps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.stepCard {
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gridAgents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.agentCard {
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.agentNumber {
+  position: absolute;
+  bottom: -20px;
+  right: -10px;
+  font-size: 5rem;
+  opacity: 0.05;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.gridTrust {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.gridTeam {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.teamCard {
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.footer {
+  padding: 60px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: center;
+  background: rgba(10, 14, 26, 0.8);
+}

@@ -1,33 +1,29 @@
-# Backend Dockerfile for PRO HR
 FROM python:3.11-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV APP_HOME /app
-
-WORKDIR $APP_HOME
-
-# Install system dependencies for packages like FAISS or PDF processing
-RUN apt-get update && apt-get install -y \
+# Install necessary system packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
-    gcc \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+WORKDIR /app
+
+# Install dependencies first for layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
+# Copy application source code
 COPY . .
 
-# Create the data directory for persistent FAISS index and DB
-RUN mkdir -p /app/data
+# Ensure data directory exists for SQLite & FAISS
+RUN mkdir -p data
 
-# Expose the application port
+# Default Environment Variables
+ENV APP_ENV=production
+ENV APP_HOST=0.0.0.0
+ENV APP_PORT=8000
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE 8000
 
-# Default command to run the FastAPI app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start Uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

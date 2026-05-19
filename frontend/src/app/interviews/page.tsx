@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { EmptyState } from "@/components/EmptyState";
 import type {
     AssessmentRow,
     InterviewsApiResponse,
@@ -26,6 +28,7 @@ export default function InterviewsPage() {
         scheduled_time: "",
         duration_minutes: 60,
     });
+    const router = useRouter();
 
     useEffect(() => {
         api.listJobs().then(setJobs).catch(() => { }).finally(() => setLoading(false));
@@ -108,19 +111,28 @@ export default function InterviewsPage() {
                 Hiring Ops Coordinator (Agent 7) schedules interviews and records assessments
             </p>
 
-            <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
-                <select
-                    className="input"
-                    value={selectedJob}
-                    onChange={(e) => loadInterviews(e.target.value)}
-                    style={{ maxWidth: 400 }}
-                >
-                    <option value="">Select pipeline...</option>
-                    {jobs.map((j) => (
-                        <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
-                    ))}
-                </select>
-            </div>
+            {jobs.length === 0 && !loading ? (
+                <EmptyState 
+                    icon="💼" 
+                    title="No Pipelines Found" 
+                    description="Start by creating an active recruitment requisition in the Intelligence Hub to schedule interviews." 
+                    action={{ label: "Go to Jobs", onClick: () => router.push("/jobs") }} 
+                />
+            ) : (
+                <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
+                    <select
+                        className="input"
+                        value={selectedJob}
+                        onChange={(e) => loadInterviews(e.target.value)}
+                        style={{ maxWidth: 400 }}
+                    >
+                        <option value="">Select pipeline...</option>
+                        {jobs.map((j) => (
+                            <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
             {selectedJob && (
                 <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
@@ -224,6 +236,14 @@ export default function InterviewsPage() {
                         {offerBusy ? "Generating..." : "Generate Offer Letter"}
                     </button>
                 </div>
+            )}
+
+            {!selectedJob && !loading && jobs.length > 0 && (
+                <EmptyState 
+                    icon="🎙️"
+                    title="Select a Pipeline"
+                    description="Choose a pipeline from the dropdown above to view scheduled interviews, assessments, and send invites."
+                />
             )}
 
             {/* Assessments */}

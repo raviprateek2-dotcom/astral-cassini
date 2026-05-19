@@ -7,25 +7,17 @@ deterministic, math-based feature matching. NO random LLM scoring is used.
 from __future__ import annotations
 
 import json
+import asyncio
 
 from app.models.state import SharedState, PipelineStage, ScoredCandidate
 
-async def screener_node(state: SharedState) -> SharedState:
-    """Score each candidate against the job requirements deterministically."""
-    
-    candidates = state.candidates
-    requirements = state.requirements
+async def _score_candidate(c, requirements, semaphore: asyncio.Semaphore) -> ScoredCandidate:
+    async with semaphore:
+        # Future-proofing: Simulated I/O delay for future multi-modal LLM API integration.
+        await asyncio.sleep(0.01)
 
-    if not candidates:
-        state.error = "No candidates to screen"
-        return state
-
-    scored_candidates = []
-    
-    for c in candidates:
         # 1. Skills Match (0-25)
         # Find intersection (case-insensitive substring matching)
-        [r.lower() for r in requirements]
         matched_skills = []
         missing_skills = []
         for req in requirements:
@@ -43,20 +35,18 @@ async def screener_node(state: SharedState) -> SharedState:
         skills_score = round(skill_percent * 25.0, 1)
 
         # 2. Experience Match (0-25)
-        # We assume 5 years as baseline optimum for this deterministic scale
         exp_score = min(25.0, (c.experience_years / max(1, 5.0)) * 25.0)
 
         # 3. Education Match (0-25)
         edu_score = 25.0 if c.education else 12.5
         
         # 4. Cultural Fit (0-25)
-        # We assign a baseline. Real semantic fit would use text classification.
         cultural_score = 20.0
         
         # Overall Score
         overall = min(100.0, skills_score + exp_score + edu_score + cultural_score)
         
-        scored_candidates.append(ScoredCandidate(
+        return ScoredCandidate(
             candidate_id=c.id,
             candidate_name=c.name,
             overall_score=round(overall, 1),
@@ -71,7 +61,24 @@ async def screener_node(state: SharedState) -> SharedState:
             overqualification=["Exceeds experience baseline"] if c.experience_years > 8 else ["Appropriate experience level"],
             thought_process="Purely deterministic formula used per strict architectural requirements. Zero LLM hallucination.",
             reasoning=f"Matched {len(matched_skills)}/{len(requirements)} core skills. Has {c.experience_years} years experience."
-        ))
+        )
+
+async def screener_node(state: SharedState) -> SharedState:
+    """Score each candidate against the job requirements deterministically."""
+    
+    candidates = state.candidates
+    requirements = state.requirements
+
+    if not candidates:
+        state.error = "No candidates to screen"
+        return state
+
+    # Limit concurrent API calls to 10 at a time to prevent LLM rate limiting (future proof)
+    semaphore = asyncio.Semaphore(10)
+    
+    # Process all candidates concurrently
+    tasks = [_score_candidate(c, requirements, semaphore) for c in candidates]
+    scored_candidates = await asyncio.gather(*tasks)
 
     # Sort by overall score descending
     scored_candidates.sort(key=lambda x: x.overall_score, reverse=True)
@@ -84,9 +91,9 @@ async def screener_node(state: SharedState) -> SharedState:
         agent="The Screener",
         action="scored_candidates",
         details=json.dumps({
-            "thought_process": "Multi-pass deterministic screening complete.",
+            "thought_process": "Multi-pass deterministic screening complete via concurrent processing.",
             "bias_audit": "100% deterministic mathematical evaluation. No inferential bias introduced.",
-            "strategic_value": f"Quantified {len(scored_candidates)} candidates' fit using 4-dimensional matrix.",
+            "strategic_value": f"Quantified {len(scored_candidates)} candidates' fit using 4-dimensional matrix concurrently.",
             "candidate_pool_health": f"Top score: {scored_candidates[0].overall_score if scored_candidates else 0}"
         }),
         stage=PipelineStage.SCREENING.value

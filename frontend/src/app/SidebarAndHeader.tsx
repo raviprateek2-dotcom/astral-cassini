@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { Menu, X } from "lucide-react";
 
 const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -20,13 +22,14 @@ const navItems = [
 export function SidebarAndHeader() {
     const { user, logout, loading } = useAuth();
     const pathname = usePathname();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     // Hide sidebar/header on landing and login pages
     if (pathname === "/" || pathname === "/login" || loading) return null;
 
     return (
         <>
-            <nav className="sidebar">
+            <nav className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
                 <div className="logo-container" style={{ marginBottom: 40, padding: "24px 20px 0" }}>
                     <span style={{ fontSize: "1.75rem", marginRight: 8 }}>🤖</span>
                     <span style={{ fontWeight: 800, fontSize: "1.25rem", background: "linear-gradient(to right, #60a5fa, #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
@@ -117,14 +120,39 @@ export function SidebarAndHeader() {
                 )}
             </nav>
 
-            <header className="header">
-                <div style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}>
+            <header className="header" style={{ position: "fixed", top: 0, left: 0, right: 0, height: 60, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", zIndex: 90, pointerEvents: "none" }}>
+                <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center" }}>
+                    <button 
+                        className="icon-btn mobile-menu-btn" 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        style={{ display: "none", background: "var(--bg-card)", border: "1px solid var(--border-glass)", borderRadius: 8, padding: 8, color: "var(--text-primary)" }}
+                    >
+                        {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+                    </button>
+                    <style jsx>{`
+                        @media (max-width: 1024px) {
+                            .mobile-menu-btn { display: flex !important; }
+                        }
+                    `}</style>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", width: "100%", pointerEvents: "auto" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                         <button className="icon-btn">🔔</button>
                         <button className="icon-btn">⚙️</button>
                     </div>
                 </div>
             </header>
+            
+            {/* Overlay for mobile sidebar */}
+            {isSidebarOpen && (
+                <div 
+                    onClick={() => setIsSidebarOpen(false)}
+                    style={{
+                        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: "rgba(0,0,0,0.5)", zIndex: 95
+                    }}
+                />
+            )}
         </>
     );
 }

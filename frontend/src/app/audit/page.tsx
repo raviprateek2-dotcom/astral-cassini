@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { EmptyState } from "@/components/EmptyState";
 import type { AuditLogEntry, JobListItem } from "@/types/domain";
 
 const agentColors: Record<string, string> = {
@@ -35,6 +36,7 @@ function AuditPageContent() {
     const [selectedJob, setSelectedJob] = useState("");
     const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(true);
+    const router = useRouter();
 
     async function loadAudit(jobId: string) {
         setSelectedJob(jobId);
@@ -70,20 +72,29 @@ function AuditPageContent() {
                 Complete decision trail with timestamps and agent attributions
             </p>
 
-            <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
-                <select
-                    className="input"
-                    title="Select pipeline for audit trail"
-                    value={selectedJob}
-                    onChange={(e) => loadAudit(e.target.value)}
-                    style={{ maxWidth: 400 }}
-                >
-                    <option value="">Select pipeline...</option>
-                    {jobs.map((j) => (
-                        <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
-                    ))}
-                </select>
-            </div>
+            {jobs.length === 0 && !loading ? (
+                <EmptyState 
+                    icon="💼" 
+                    title="No Pipelines Found" 
+                    description="Start by creating an active recruitment requisition in the Intelligence Hub to view audit trails." 
+                    action={{ label: "Go to Jobs", onClick: () => router.push("/jobs") }} 
+                />
+            ) : (
+                <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
+                    <select
+                        className="input"
+                        title="Select pipeline for audit trail"
+                        value={selectedJob}
+                        onChange={(e) => loadAudit(e.target.value)}
+                        style={{ maxWidth: 400 }}
+                    >
+                        <option value="">Select pipeline...</option>
+                        {jobs.map((j) => (
+                            <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
             {loading && selectedJob && (
                 <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><div className="spinner" /></div>
@@ -194,6 +205,14 @@ function AuditPageContent() {
                     <p style={{ fontSize: "2rem", margin: "0 0 12px" }}>📜</p>
                     <p style={{ color: "var(--text-muted)" }}>No audit events yet for this pipeline.</p>
                 </div>
+            )}
+
+            {!selectedJob && !loading && jobs.length > 0 && (
+                <EmptyState 
+                    icon="📜"
+                    title="Select a Pipeline"
+                    description="Choose a pipeline to view its complete audit trail and decision timeline."
+                />
             )}
         </div>
     );

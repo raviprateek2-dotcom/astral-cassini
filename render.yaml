@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: pro-hr-backend
+    env: docker
+    region: ohio
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV
+        value: "true"
+      - key: DEMO_ADMIN_PASSWORD
+        generateValue: true
+      - key: DEMO_HR_PASSWORD
+        generateValue: true
+    disk:
+      name: pro-hr-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  - type: web
+    name: pro-hr-frontend
+    env: docker
+    region: ohio
+    plan: starter
+    dockerfilePath: ./frontend/Dockerfile
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: pro-hr-backend
+          envVarKey: RENDER_EXTERNAL_URL

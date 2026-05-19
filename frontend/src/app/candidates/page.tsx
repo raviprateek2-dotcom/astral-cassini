@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { CandidateTable } from "@/components/CandidateTable";
 import { CandidateModal } from "@/components/CandidateModal";
 import { Search } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { useRouter } from "next/navigation";
 import type { CandidateLike, JobListItem } from "@/types/domain";
 
 export default function CandidatesPage() {
@@ -13,6 +15,7 @@ export default function CandidatesPage() {
     const [candidates, setCandidates] = useState<CandidateLike[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedCandidate, setSelectedCandidate] = useState<CandidateLike | null>(null);
+    const router = useRouter();
 
     useEffect(() => {
         api.listJobs()
@@ -60,33 +63,41 @@ export default function CandidatesPage() {
                 </p>
             </div>
 
-            {/* Filter Bar */}
-            <div className="glass-card" style={{ padding: "24px", marginBottom: "32px", display: "flex", gap: "24px", alignItems: "flex-end" }}>
-                <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Active Neural Pipeline</label>
-                    <select
-                        className="input"
-                        value={selectedJobId}
-                        onChange={(e) => handleJobSelect(e.target.value)}
-                        style={{ height: "45px" }}
-                    >
-                        <option value="">Select a specific pipeline to analyze...</option>
-                        {jobs.map((j) => (
-                            <option key={j.job_id} value={j.job_id}>
-                                {j.job_title} — {j.department} ({j.current_stage})
-                            </option>
-                        ))}
-                    </select>
-                </div>
-                
-                <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Quick Search</label>
-                    <div style={{ position: "relative" }}>
-                        <Search size={18} style={{ position: "absolute", left: 14, top: 13, color: "var(--text-muted)" }} />
-                        <input className="input" placeholder="Global search disabled in summary view..." disabled style={{ paddingLeft: 44, height: "45px", opacity: 0.5 }} />
+            {jobs.length === 0 && !loading ? (
+                <EmptyState 
+                    icon="💼" 
+                    title="No Pipelines Found" 
+                    description="Start by creating an active recruitment requisition in the Intelligence Hub to see candidates." 
+                    action={{ label: "Go to Jobs", onClick: () => router.push("/jobs") }} 
+                />
+            ) : (
+                <div className="glass-card" style={{ padding: "24px", marginBottom: "32px", display: "flex", gap: "24px", alignItems: "flex-end" }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Active Neural Pipeline</label>
+                        <select
+                            className="input"
+                            value={selectedJobId}
+                            onChange={(e) => handleJobSelect(e.target.value)}
+                            style={{ height: "45px" }}
+                        >
+                            <option value="">Select a specific pipeline to analyze...</option>
+                            {jobs.map((j) => (
+                                <option key={j.job_id} value={j.job_id}>
+                                    {j.job_title} — {j.department} ({j.current_stage})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Quick Search</label>
+                        <div style={{ position: "relative" }}>
+                            <Search size={18} style={{ position: "absolute", left: 14, top: 13, color: "var(--text-muted)" }} />
+                            <input className="input" placeholder="Global search disabled in summary view..." disabled style={{ paddingLeft: 44, height: "45px", opacity: 0.5 }} />
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {loading && selectedJobId && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "100px 0" }}>
@@ -121,14 +132,12 @@ export default function CandidatesPage() {
                 </div>
             )}
 
-            {!selectedJobId && !loading && (
-                <div className="glass-card stagger-1" style={{ padding: "100px 40px", textAlign: "center", background: "rgba(15, 23, 42, 0.4)" }}>
-                    <div style={{ fontSize: "3rem", marginBottom: 20 }}>🧬</div>
-                    <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: 12 }}>Select a Pipeline to Begin Analytics</h2>
-                    <p style={{ color: "var(--text-muted)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
-                        Choose an active recruitment requisition from the selector above to view deterministic scores, gap analysis, and system reasoning for each candidate.
-                    </p>
-                </div>
+            {!selectedJobId && !loading && jobs.length > 0 && (
+                <EmptyState 
+                    icon="🧬"
+                    title="Select a Pipeline to Begin Analytics"
+                    description="Choose an active recruitment requisition from the selector above to view deterministic scores, gap analysis, and system reasoning for each candidate."
+                />
             )}
 
             {selectedCandidate && (

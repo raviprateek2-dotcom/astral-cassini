@@ -14,10 +14,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api import jobs, candidates, workflow, websocket, auth, analytics
+from app.api import jobs, candidates, workflow, websocket, auth, analytics, webhooks
 from app.core.database import init_db, SessionLocal
 from app.core.observability import snapshot as observability_snapshot
 from app.core.orchestrator import run_retention_cleanup
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.core.rate_limit import limiter
 
 # Configure logging
 logging.basicConfig(
@@ -150,6 +154,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS middleware (set FRONTEND_URL + optional CORS_EXTRA_ORIGINS in production)
 app.add_middleware(
     CORSMiddleware,
@@ -226,6 +233,7 @@ app.include_router(jobs.router)
 app.include_router(candidates.router)
 app.include_router(workflow.router)
 app.include_router(websocket.router)
+app.include_router(webhooks.router)
 
 
 

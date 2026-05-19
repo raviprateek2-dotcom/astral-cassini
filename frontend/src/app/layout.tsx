@@ -6,6 +6,7 @@ import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { SidebarAndHeader } from "./SidebarAndHeader";
 import { Toaster } from "sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -15,6 +16,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
   return (
     <main
+      className="main-content"
       style={{
         flex: 1,
         marginLeft: isMinimal ? 0 : "var(--sidebar-width)",
@@ -41,25 +43,18 @@ export default function RootLayout({
         <meta name="description" content="Multi-agent recruitment platform with a deterministic orchestrator, human-in-the-loop gates, and FAISS-backed semantic resume search." />
       </head>
       <body className={inter.className} style={{ position: "relative", overflowX: "hidden", minHeight: "100vh", backgroundColor: "#0f172a" }}>
-
-        {/* Agent Matrix Animated Background */}
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: -1,
-          opacity: 0.4,
-          background: `
-            radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
-            radial-gradient(circle at 85% 30%, rgba(167, 139, 250, 0.1), transparent 25%)
-          `
-        }} />
+        
+        {/* Premium Background */}
+        <div className="premium-bg-overlay animate-float" style={{ opacity: 0.6 }} />
         <div className="matrix-bg" />
 
         <AuthProvider>
           <Toaster richColors position="top-right" />
           <div style={{ display: "flex", minHeight: "100vh" }}>
             <SidebarAndHeader />
-            <MainContent>{children}</MainContent>
+            <ErrorBoundary>
+              <MainContent>{children}</MainContent>
+            </ErrorBoundary>
           </div>
         </AuthProvider>
       </body>

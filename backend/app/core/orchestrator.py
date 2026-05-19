@@ -460,12 +460,20 @@ def get_workflows_by_owner(db: Session, user_id: int) -> list[dict]:
 
 
 def _job_to_summary(j: Job) -> dict:
+    state = {}
+    if j.workflow_state:
+        import json
+        try:
+            state = json.loads(j.workflow_state) if isinstance(j.workflow_state, str) else j.workflow_state
+        except Exception:
+            state = {}
     return {
         "job_id": j.job_id,
         "job_title": j.job_title,
         "department": j.department,
         "current_stage": j.current_stage,
         "created_at": j.created_at.isoformat(),
+        "candidates_count": len(state.get("candidates", []) or []),
     }
 
 

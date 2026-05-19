@@ -1,47 +1,27 @@
-# Default: both services in Docker; browser on the host uses http://localhost:3000
-#
-# Frontend build uses SAME-ORIGIN API (empty NEXT_PUBLIC_API_URL): the browser hits
-# /api/* on port 3000; Next.js rewrites proxy to the backend service (BACKEND_URL).
-# WebSocket still uses NEXT_PUBLIC_WS_URL → ws://localhost:8000 (published port).
-#
-# Alternate (browser calls API directly on :8000): docker compose -f docker-compose.yml -f docker-compose.direct-api.yml up --build
-#
-# Requires backend/.env (see backend/.env.example). FRONTEND_URL should include
-# the URL users open in the browser (e.g. http://localhost:3000) for CORS + cookies.
-version: "3.8"
+version: '3.8'
 
 services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    container_name: prohr-backend
     ports:
       - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - FRONTEND_URL=http://localhost:3000
+      - DEMO_ADMIN_PASSWORD=password123
+      - DEMO_HR_PASSWORD=password123
+      - SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+      # - OPENAI_API_KEY=your_key_here
     volumes:
       - ./backend/data:/app/data
-    env_file:
-      - ./backend/.env
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        BACKEND_URL: http://backend:8000
-        NEXT_PUBLIC_API_URL: ""
-        NEXT_PUBLIC_WS_URL: ws://localhost:8000
-    container_name: prohr-frontend
     ports:
       - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
     depends_on:
-      backend:
-        condition: service_healthy
-    restart: always
+      - backend

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import secrets
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ from app.core.auth import (
     get_current_user,
     user_may_subscribe_job_ws,
 )
+from app.core.rate_limit import limiter
 from app.models.db_models import Job, User
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -93,7 +94,9 @@ class UserResponse(BaseModel):
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[Session, Depends(get_db)],
     response: Response,

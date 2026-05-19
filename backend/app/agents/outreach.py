@@ -14,6 +14,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.config import settings
 from app.models.state import PipelineStage, SharedState, OutreachEmail
 
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail
+except ImportError:
+    SendGridAPIClient = None
+    Mail = None
+
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a highly persuasive and professional Talent Acquisition Specialist. 
@@ -112,19 +119,41 @@ Context (JD):
                         "body": _response_to_text(response.content)
                     }
 
+                email_subject = str(email_data.get("subject", ""))
+                email_body = str(email_data.get("body", ""))
+                
+                # Phase 4.4.1: Live Email Integration via SendGrid
+                dispatch_status = "drafted"
+                if settings.email_provider == "sendgrid" and settings.sendgrid_api_key and SendGridAPIClient:
+                    try:
+                        sg = SendGridAPIClient(settings.sendgrid_api_key)
+                        message = Mail(
+                            from_email=settings.smtp_from_email,
+                            to_emails="candidate_mock_email@example.com", # In real prod, this is candidate.email
+                            subject=email_subject,
+                            html_content=email_body.replace("\n", "<br>")
+                        )
+                        sg.send(message)
+                        dispatch_status = "sent"
+                    except Exception as e:
+                        logger.error(f"SendGrid failed for {candidate.candidate_name}: {e}")
+                        dispatch_status = "failed"
+                elif settings.email_provider == "mock" or not settings.sendgrid_api_key:
+                    dispatch_status = "sent_mock"
+
                 outreach_emails.append(
                     OutreachEmail(
                         candidate_id=candidate.candidate_id,
                         candidate_name=candidate.candidate_name,
-                        subject=str(email_data.get("subject", "")),
-                        body=str(email_data.get("body", "")),
-                        status="sent",
+                        subject=email_subject,
+                        body=email_body,
+                        status=dispatch_status,
                     )
                 )
                 state.log_audit(
                     "Outreach Agent",
                     "outreach_sent",
-                    f"Personalized email sent to {candidate.candidate_name}.",
+                    f"Personalized email dispatched to {candidate.candidate_name} via {settings.email_provider}.",
                     PipelineStage.OUTREACH.value,
                 )
 

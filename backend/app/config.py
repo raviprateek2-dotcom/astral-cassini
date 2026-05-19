@@ -86,9 +86,13 @@ class Settings(BaseSettings):
     )
 
     # Email integration
-    email_provider: Literal["mock", "smtp"] = Field(
+    email_provider: Literal["mock", "smtp", "sendgrid"] = Field(
         default="mock",
         description="Outbound email provider for interview/outreach notifications.",
+    )
+    sendgrid_api_key: str = Field(
+        default="",
+        description="SendGrid API Key for real-world email outreach.",
     )
     smtp_host: str = ""
     smtp_port: int = 587

@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import styles from "./Landing.module.css";
 
 export default function LandingPage() {
     const { user, loading } = useAuth();
@@ -97,74 +98,25 @@ export default function LandingPage() {
     const [activeMember, setActiveMember] = React.useState<number | null>(null);
 
     return (
-        <div className="landing-container" style={{
-            background: "#0a0e1a",
-            color: "var(--text-primary)",
-            overflowX: "hidden",
-            scrollBehavior: "smooth"
-        }}>
+        <div className={`landing-container ${styles.container}`}>
             {/* --- SECTION 1: HERO HUB --- */}
-            <section style={{
-                minHeight: "100vh",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "20px",
-                position: "relative",
-                textAlign: "center"
-            }}>
+            <section className={styles.heroSection}>
                 {/* Background Ambient Glows */}
-                <div style={{
-                    position: "absolute",
-                    top: "20%",
-                    left: "10%",
-                    width: "50vw",
-                    height: "50vw",
-                    background: "radial-gradient(circle, rgba(59, 130, 246, 0.05) 0%, transparent 70%)",
-                    filter: "blur(80px)",
-                    zIndex: 0
-                }} />
+                <div className={styles.ambientGlow} />
 
-                <div className="fade-in" style={{ position: "relative", zIndex: 1, maxWidth: "900px" }}>
-                    <div style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "12px",
-                        marginBottom: "32px",
-                        padding: "8px 20px",
-                        borderRadius: "100px",
-                        background: "rgba(255, 255, 255, 0.03)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
-                        backdropFilter: "blur(10px)"
-                    }}>
+                <div className={`fade-in ${styles.heroContent}`}>
+                    <div className={styles.badgeEnterprise}>
                         <span style={{ fontSize: "1.2rem" }}>🤖</span>
                         <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                             Enterprise Multi-Agent Ecosystem
                         </span>
                     </div>
 
-                    <h1 style={{
-                        fontSize: "clamp(2.5rem, 8vw, 4.5rem)",
-                        fontWeight: 900,
-                        lineHeight: 1.1,
-                        marginBottom: "24px",
-                        letterSpacing: "-0.04em",
-                        background: "linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.6) 100%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent"
-                    }}>
+                    <h1 className={styles.heroTitle}>
                         Revolutionize Hiring with <br /> <span className="gradient-text">Autonomous Agents.</span>
                     </h1>
 
-                    <p style={{
-                        fontSize: "clamp(1.1rem, 2vw, 1.35rem)",
-                        color: "var(--text-secondary)",
-                        marginBottom: "18px",
-                        lineHeight: 1.6,
-                        maxWidth: "700px",
-                        marginInline: "auto"
-                    }}>
+                    <p className={styles.heroSubtitle}>
                         Reduce hiring cycle time with deterministic AI execution and human approval gates at every critical decision.
                     </p>
                     <p style={{ color: "var(--text-muted)", marginBottom: "36px", fontSize: "0.98rem" }}>
@@ -181,11 +133,11 @@ export default function LandingPage() {
 
                     <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
                         {!loading && user ? (
-                            <Link className="btn-primary" href="/dashboard" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                            <Link className={`btn-primary ${styles.actionButton}`} href="/dashboard">
                                 Go to Dashboard
                             </Link>
                         ) : (
-                            <Link className="btn-primary" href="/dashboard" style={{ padding: "18px 40px", fontSize: "1rem", borderRadius: "14px", boxShadow: "0 15px 30px -5px rgba(59, 130, 246, 0.5)" }}>
+                            <Link className={`btn-primary ${styles.actionButton}`} href="/dashboard">
                                 Launch Control Center
                             </Link>
                         )}

@@ -112,3 +112,4 @@ See [ENGINEERING_HARDENING_CHECKLIST.md](./ENGINEERING_HARDENING_CHECKLIST.md) f
 | 2026-04-18 | **HUMAN / A split:** banner + `V` column; Track **2.3** done (audit test); **2.4** documented as CI `pip-audit` blocking (**H** for severity-only tuning).                   |
 | 2026-04-10 | Track **2.5–2.7:** CSRF PATCH test; job PDF MIME + parse timeout; `useAuth` protected shell gate; Playwright route-guard smoke.                                              |
 | 2026-04-19 | Deployed demo logins: optional **`ALLOW_SEED_DEMO_USERS_OUTSIDE_DEV`**; docs (README, CHANGELOG, `frontend/README`); progress row **2.7** notes `src/middleware` + deploy env.        |
+| 2026-05-19 | Phase 3 (Task 3.4): Validated negative testing (Error Boundaries, WS disconnects, unauthorized access). Documented stability under failure in error handling mechanisms. |

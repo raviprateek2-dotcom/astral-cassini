@@ -157,7 +157,7 @@ function JobsPageContent() {
                 {/* Control Panel */}
                 <ControlPanel />
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "24px", alignItems: "start" }}>
+                <div className="mobile-grid-1" style={{ display: "grid", gridTemplateColumns: "1fr 350px", gap: "24px", alignItems: "start" }}>
                     
                     {/* Main Workspace */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
