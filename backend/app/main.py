@@ -54,6 +54,7 @@ def _cors_allow_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     # Set LangSmith environment variables before graph execution
     if settings.langchain_api_key:
         os.environ["LANGCHAIN_TRACING_V2"] = settings.langchain_tracing_v2
@@ -65,7 +66,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize SQLAlchemy database tables on startup
     init_db()
-    
+
     # Auto-create demo users when enabled (dev by default; staging/prod only with explicit opt-in).
     is_dev = settings.app_env.lower() in {"development", "dev", "local"}
     may_seed_demo = settings.seed_demo_users and (
@@ -122,6 +123,7 @@ async def lifespan(app: FastAPI):
         bool(settings.smtp_host),
         settings.smtp_from_email,
     )
+
     db = SessionLocal()
     try:
         retention_result = run_retention_cleanup(db)
@@ -134,8 +136,9 @@ async def lifespan(app: FastAPI):
         logger.exception("Retention cleanup skipped due to startup DB access issue.")
     finally:
         db.close()
-        
+
     yield
+
 
 # Create the FastAPI app
 app = FastAPI(

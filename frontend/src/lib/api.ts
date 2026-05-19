@@ -62,7 +62,7 @@ apiClient.interceptors.response.use(
             // Stay on login (wrong-password 401) or landing; otherwise send users to the landing page.
             const p = window.location.pathname;
             if (p !== "/login" && p !== "/") {
-                window.location.href = "/";
+                window.location.href = `/?next=${encodeURIComponent(p)}`;
             }
         }
         return Promise.reject(new Error(error.response?.data?.detail || error.message || "API Error"));

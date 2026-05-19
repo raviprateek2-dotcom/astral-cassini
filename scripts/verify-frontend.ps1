@@ -13,6 +13,8 @@ try {
 if (-not $env:SECRET_KEY) {
     $env:SECRET_KEY = "ci-test-secret-key-must-be-32chars-minimum"
 }
+$env:NEXT_PUBLIC_DEMO_MODE = "false"
+
 
 function Invoke-CheckLastExit {
     param([string]$Step)

@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 localStorage.removeItem("user");
                 if (pathname !== "/login" && pathname !== "/") {
-                    router.push("/");
+                    router.push(`/?next=${encodeURIComponent(pathname)}`);
                 }
             } finally {
                 setLoading(false);

@@ -63,7 +63,7 @@ describe("AuthProvider", () => {
     );
 
     await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/");
+      expect(pushMock).toHaveBeenCalledWith("/?next=%2Fdashboard");
     });
     expect(screen.getByTestId("user-email")).toHaveTextContent("none");
   });

@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export SECRET_KEY="${SECRET_KEY:-ci-test-secret-key-must-be-32chars-minimum}"
+export NEXT_PUBLIC_DEMO_MODE="false"
+
 
 echo "== Backend deps for E2E (uvicorn) =="
 cd "${ROOT}/backend"

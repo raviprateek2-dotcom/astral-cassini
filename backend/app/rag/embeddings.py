@@ -26,35 +26,39 @@ INDEX_PATH = "data/faiss_index"
 
 
 def _get_vectorstore() -> FAISS:
-    """Lazily initialize and load the FAISS vector store from disk."""
+    """Lazily initialize and load the FAISS vector store from disk.
+
+    NOTE: First call will make an OpenAI embedding API call only if no index
+    exists on disk. This is intentionally deferred — never called at startup.
+    """
     global _vectorstore
     if _vectorstore is None:
         embeddings = OpenAIEmbeddings(
             model=settings.embedding_model,
             api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
         )
-        
+
         # Load from disk if exists
         if os.path.exists(INDEX_PATH):
             try:
                 _vectorstore = FAISS.load_local(
-                    INDEX_PATH, 
-                    embeddings, 
-                    allow_dangerous_deserialization=True  # Required for local pickle-based FAISS
+                    INDEX_PATH,
+                    embeddings,
+                    allow_dangerous_deserialization=True,
                 )
-                logger.info(f"Loaded FAISS index from {INDEX_PATH}")
+                logger.info("Loaded FAISS index from %s", INDEX_PATH)
             except Exception as e:
-                logger.error(f"Failed to load FAISS: {e}. Creating new.")
-                # Fallback to empty index
+                logger.error("Failed to load FAISS: %s. Creating new index.", e)
                 _vectorstore = None
-        
+
         if _vectorstore is None:
-            # Create a dummy doc to initialize the index if it doesn't exist
-            # FAISS needs at least one doc to initialize from_documents
+            # Only create a bootstrap doc when no index exists on disk.
+            # This makes an OpenAI call — that is acceptable here because it
+            # only happens on first-ever resume upload, not at server startup.
             dummy_doc = Document(page_content="init", metadata={"section": "init"})
             _vectorstore = FAISS.from_documents([dummy_doc], embeddings)
-            logger.info("New FAISS index initialized")
-            
+            logger.info("New FAISS index bootstrapped")
+
     return _vectorstore
 
 
@@ -190,10 +194,15 @@ def search_resumes(
 
 
 def get_collection_count() -> int:
-    """Return the number of candidate records in the index."""
+    """Return the number of vectors in the FAISS index.
+
+    Returns 0 safely if the index has never been created yet, without
+    triggering the lazy initializer (which makes an OpenAI API call).
+    """
     try:
-        vs = _get_vectorstore()
-        # count unique candidate IDs in metadata if possible, but total docs is a good proxy-count
-        return vs.index.ntotal - 1 # subtracting init doc
+        if _vectorstore is None:
+            # Index not yet loaded — no resumes indexed yet
+            return 0
+        return max(0, _vectorstore.index.ntotal - 1)  # subtract the bootstrap init doc
     except Exception:
         return 0
