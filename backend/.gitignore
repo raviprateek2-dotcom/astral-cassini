@@ -17,3 +17,6 @@ venv/
 *.log
 e2e_*.txt
 test_output.txt
+
+# Coverage
+.coverage

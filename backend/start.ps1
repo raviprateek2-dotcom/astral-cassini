@@ -17,4 +17,4 @@ Get-Content ".env" | Where-Object {
 Write-Host "Environment loaded. SECRET_KEY present: $([bool]$env:SECRET_KEY)" -ForegroundColor Green
 Write-Host "Starting uvicorn on port 8000..." -ForegroundColor Cyan
 
-python -m uvicorn app.main:app --reload --port 8000
+py -3.11 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000

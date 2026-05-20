@@ -4,3 +4,13 @@
 -r requirements.txt
 langgraph>=0.2.60
 requests>=2.32.0
+
+# Coverage
+pytest-cov==5.0.0
+
+# Stress Testing
+locust==2.29.0
+
+# Security Auditing
+bandit==1.7.9
+pip-audit==2.7.3
