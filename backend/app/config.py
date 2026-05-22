@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     )
 
     # LLM Defaults
-    llm_model: str = "gpt-4o"
+    llm_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.3
     embedding_model: str = "text-embedding-3-small"
 

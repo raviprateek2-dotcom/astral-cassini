@@ -7,13 +7,8 @@ and quality bars before bothering a human reviewer.
 import json
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
-from pydantic import BaseModel, Field
 from app.config import settings
-
-class CritiqueResult(BaseModel):
-    score: int = Field(..., description="Score from 1 to 10")
-    feedback: str = Field(..., description="Specific feedback on what to fix if score < 9")
-    approved: bool = Field(..., description="True if score >= 9")
+from app.agents.structured_outputs import CritiqueResult
 
 CRITIC_PROMPT = """You are the Lead HR Compliance Officer and Senior Editor.
 Your job is to ruthlessly evaluate drafted Job Descriptions before they reach the Hiring Manager.
@@ -30,11 +25,33 @@ Return a strict JSON response containing:
 - "approved": boolean (true if >= 9)
 """
 
+# Sections the JD Architect is required to produce.
+_REQUIRED_SECTIONS = [
+    "Role Summary",
+    "Core Responsibilities",
+    "Required Qualifications",
+    "Preferred Qualifications",
+    "Compensation & Benefits",
+    "Interview Process",
+    "Equal Opportunity Statement",
+]
+
+
 async def run_critic(job_description: str, job_title: str) -> CritiqueResult:
     """Evaluate a job description."""
     if not settings.openai_api_key or "your-openai" in settings.openai_api_key:
         # Mock logic
         return CritiqueResult(score=10, feedback="Looks great.", approved=True)
+
+    # --- Pre-LLM programmatic section check ---
+    jd_lower = job_description.lower()
+    missing = [s for s in _REQUIRED_SECTIONS if s.lower() not in jd_lower]
+    if missing:
+        return CritiqueResult(
+            score=3,
+            feedback=f"Missing required sections: {', '.join(missing)}. Add these before resubmitting.",
+            approved=False,
+        )
 
     llm = ChatOpenAI(
         model=settings.llm_model,

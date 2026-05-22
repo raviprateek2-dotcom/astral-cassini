@@ -12,16 +12,21 @@ from app.rag.embeddings import search_resumes
 logger = logging.getLogger(__name__)
 
 
-def semantic_search(query: str, top_k: int = 10) -> list[dict]:
+def semantic_search(
+    query: str,
+    top_k: int = 10,
+    required_skills: list[str] | None = None,
+) -> list[dict]:
     """Search for candidates matching a query.
 
     Args:
         query: Search query (typically the job description).
         top_k: Number of top results to return.
+        required_skills: Optional list of skills for metadata filtering/boosting.
 
     Returns:
         List of candidate dicts with relevance scores.
     """
     logger.info(f"Running semantic_search for query (first 50 chars): {query[:50]}...")
-    return search_resumes(query, k=top_k)
+    return search_resumes(query, k=top_k, required_skills=required_skills)
 

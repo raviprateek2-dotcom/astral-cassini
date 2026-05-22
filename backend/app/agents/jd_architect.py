@@ -10,6 +10,8 @@ import json
 import asyncio
 import re
 
+from app.agents.structured_outputs import JDArchitectOutput
+
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -144,7 +146,12 @@ Please incorporate this feedback into the revised job description.
             if state.human_feedback:
                 mock_text += f"\n\n## REVISION (Refined based on feedback)\nFEEDBACK: {state.human_feedback}"
             
-            job_description = f"<thought_process>Mock reasoning</thought_process><job_description>{mock_text}</job_description><bias_audit>Mock audit</bias_audit>"
+            thought = "Mock reasoning"
+            final_jd = mock_text
+            audit_summary = "Mock audit"
+            identified_biases = []
+            
+            job_description = f"<thought_process>{thought}</thought_process><job_description>{final_jd}</job_description><bias_audit>{audit_summary}</bias_audit>"
             await asyncio.sleep(2)
             if state.job_id:
                 for word in mock_text.split(" "):
@@ -169,22 +176,42 @@ Please incorporate this feedback into the revised job description.
                 state.error = f"LLM Error: {str(e)}"
                 return state
 
-        # Extract structured content from the LLM response
-        thought_match = re.search(r"<thought_process>(.*?)</thought_process>", job_description, re.DOTALL)
-        jd_match = re.search(r"<job_description>(.*?)</job_description>", job_description, re.DOTALL)
-        audit_match = re.search(r"<bias_audit>(.*?)</bias_audit>", job_description, re.DOTALL)
-        
-        if thought_match:
-            thought = thought_match.group(1).strip()
-        if jd_match:
-            final_jd = jd_match.group(1).strip()
-        if audit_match:
-            audit_summary = audit_match.group(1).strip()
-        
-        # Fallback if parsing fails
-        if not final_jd:
-            final_jd = job_description
-            thought = "Strategically aligned JD with role requirements."
+            # Extract structured content via a second LLM call with structured output
+            identified_biases: list[str] = []
+            try:
+                extraction_llm = ChatOpenAI(
+                    model=settings.llm_model,
+                    temperature=0,
+                    api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
+                ).with_structured_output(JDArchitectOutput)
+
+                extraction_result = await extraction_llm.ainvoke([
+                    HumanMessage(content=(
+                        "Extract the structured fields from the following raw JD architect output.\n\n"
+                        f"{job_description}"
+                    ))
+                ])
+
+                thought = extraction_result.thought_process
+                final_jd = extraction_result.job_description
+                audit_summary = extraction_result.bias_audit_summary
+                identified_biases = extraction_result.identified_biases
+            except Exception:
+                # Fallback: use regex as a last resort
+                thought_match = re.search(r"<thought_process>(.*?)</thought_process>", job_description, re.DOTALL)
+                jd_match = re.search(r"<job_description>(.*?)</job_description>", job_description, re.DOTALL)
+                audit_match = re.search(r"<bias_audit>(.*?)</bias_audit>", job_description, re.DOTALL)
+                if thought_match:
+                    thought = thought_match.group(1).strip()
+                if jd_match:
+                    final_jd = jd_match.group(1).strip()
+                if audit_match:
+                    audit_summary = audit_match.group(1).strip()
+
+            # Fallback if parsing fails entirely
+            if not final_jd:
+                final_jd = job_description
+                thought = "Strategically aligned JD with role requirements."
 
         # RUN ACTOR-CRITIC EVALUATION
         critique = await run_critic(final_jd, state.job_title)
@@ -214,6 +241,7 @@ Please incorporate this feedback into the revised job description.
         details=json.dumps({
             "thought_process": thought,
             "bias_audit": audit_summary,
+            "identified_biases": identified_biases,
             "critic_logs": critic_logs,
             "strategic_value": "Automated intake conversion, self-corrected via Actor-Critic.",
             "trade_offs": "Balanced technical depth with accessibility to broaden the talent pool."

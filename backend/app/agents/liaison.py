@@ -7,7 +7,7 @@ notices to the exact state and letting the orchestrator hit the breakpoint.
 from __future__ import annotations
 
 
-from app.models.state import SharedState, PipelineStage
+from app.models.state import SharedState, PipelineStage, HumanFeedback
 
 
 async def liaison_node(state: SharedState) -> SharedState:
@@ -24,6 +24,13 @@ async def liaison_node(state: SharedState) -> SharedState:
             details="Liaison Update: Notifying relevant parties that the Job Description is ready for review.",
             stage=PipelineStage.JD_REVIEW.value
         )
+        if state.structured_feedback.comments:
+            state.log_audit(
+                agent="The Liaison",
+                action="structured_feedback_received",
+                details=f"Reviewer comments: {state.structured_feedback.comments}",
+                stage=PipelineStage.JD_REVIEW.value,
+            )
         state.log_audit(
             agent="The Liaison",
             action="awaiting_jd_approval",
@@ -39,6 +46,13 @@ async def liaison_node(state: SharedState) -> SharedState:
             details=f"Liaison Update: Sending a 'Soft Pulse' update to {len(scored)} candidates. Informing them that shortlisting is underway to prevent ghosting.",
             stage=PipelineStage.SHORTLIST_REVIEW.value
         )
+        if state.structured_feedback.comments:
+            state.log_audit(
+                agent="The Liaison",
+                action="structured_feedback_received",
+                details=f"Reviewer comments: {state.structured_feedback.comments}",
+                stage=PipelineStage.SHORTLIST_REVIEW.value,
+            )
         state.log_audit(
             agent="The Liaison",
             action="awaiting_shortlist_approval",
@@ -54,11 +68,35 @@ async def liaison_node(state: SharedState) -> SharedState:
             details="Liaison Update: Proactively updating high-potential candidates that final deliberations are in progress. Maintaining high engagement.",
             stage=PipelineStage.HIRE_REVIEW.value
         )
+        if state.structured_feedback.comments:
+            state.log_audit(
+                agent="The Liaison",
+                action="structured_feedback_received",
+                details=f"Reviewer comments: {state.structured_feedback.comments}",
+                stage=PipelineStage.HIRE_REVIEW.value,
+            )
         state.log_audit(
             agent="The Liaison",
             action="awaiting_hire_decision",
             details=f"Final recommendations for {len(recs)} candidates ready for review",
             stage=PipelineStage.HIRE_REVIEW.value
+        )
+
+    # Ghosting risk tracking for candidate-facing stages
+    if current_stage in (
+        PipelineStage.SHORTLIST_REVIEW.value,
+        PipelineStage.HIRE_REVIEW.value,
+    ):
+        pool_size = len(state.scored_candidates)
+        state.log_audit(
+            agent="The Liaison",
+            action="ghosting_risk_check",
+            details=(
+                f"Ghosting risk tracking: {pool_size} candidates in pool at "
+                f"stage '{current_stage}'. Audit log contains "
+                f"{len(state.audit_log)} entries."
+            ),
+            stage=current_stage,
         )
 
     return state

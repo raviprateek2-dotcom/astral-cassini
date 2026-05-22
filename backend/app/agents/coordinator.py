@@ -11,31 +11,51 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
 from app.models.state import SharedState, PipelineStage, Interview, Assessment, Recommendation, OfferRecord, DecisionTrace
-from app.tools.calendar_tool import schedule_meeting
+from app.tools.calendar_tool import schedule_meeting, check_availability
 from app.tools.email_tool import send_interview_invitation
+from app.agents.structured_outputs import InterviewAssessmentSchema
 
 logger = logging.getLogger(__name__)
 
 # --- Prompts ---
 
 INTERVIEWER_PROMPT = """You are an expert Interview Assessment Analyst. Your role is tightly deterministic.
-Analyze the following interview data and extract specific structured JSON.
-Return a JSON array of objects.
-
-JSON schema per object:
-{"candidate_id": "string", "candidate_name": "string", "technical_score": float(0-10), "communication_score": float(0-10), "problem_solving_score": float(0-10), "cultural_fit_score": float(0-10), "overall_score": float(0-10), "key_observations": ["string"], "concerns": ["string"], "transcript_summary": "string"}
+Analyze the following interview data and extract structured assessments for each candidate.
+Focus exclusively on technical ability, communication, problem-solving, and cultural fit.
+Do NOT factor in any personal identifiers, gender, or demographic information.
 """
 
 OFFER_PROMPT = """You are a Compensation Specialist. Generate a professional Markdown
 offer letter for the successful candidate based on the job details and performance."""
+
+
+# --- Structured output wrapper ---
+
+class InterviewAssessmentList(BaseModel):
+    assessments: list[InterviewAssessmentSchema]
+
+
+# --- Utilities ---
+
+def _anonymize_transcript(text: str, names_to_strip: list[str]) -> str:
+    """Strip candidate names and personal identifiers from transcript text."""
+    result = text
+    for name in names_to_strip:
+        for part in name.split():
+            if len(part) > 2:
+                result = re.sub(re.escape(part), '[CANDIDATE]', result, flags=re.IGNORECASE)
+    # Strip common gendered pronouns to reduce bias
+    result = re.sub(r'\b(he|she|him|her|his|hers)\b', 'they/them', result, flags=re.IGNORECASE)
+    return result
 
 
 def _coerce_llm_text(content: object) -> str:
@@ -82,18 +102,37 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
         state.error = "No candidates to schedule"
         return state
 
-    top = [c for c in scored_candidates if c.overall_score >= 60][:5]
+    # Filter out candidates who have declined (from response tracker)
+    declined_ids: set[str] = {
+        resp.candidate_id
+        for resp in state.candidate_responses
+        if resp.intent == "declined"
+    }
+    eligible = [c for c in scored_candidates if c.candidate_id not in declined_ids]
+    if not eligible:
+        state.error = "All candidates declined"
+        return state
+
+    top = [c for c in eligible if c.overall_score >= 60][:5]
     if not top:
-        top = scored_candidates[:3]
+        top = eligible[:3]
 
     scheduled = []
-    base_time = datetime.now() + timedelta(days=2)
+    base_date = datetime.now() + timedelta(days=2)
     for i, c in enumerate(top):
-        tm = base_time + timedelta(days=i, hours=10)
-        
+        sched_date = (base_date + timedelta(days=i)).strftime("%Y-%m-%d")
+        avail = check_availability(
+            attendees=[f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com"],
+            date=sched_date,
+        )
+        slots = avail.get("available_slots", [])
+        # Pick first available slot for technical, second for behavioral
+        tech_time = slots[0]["start"] if len(slots) > 0 else f"{sched_date}T09:00:00"
+        behav_time = slots[1]["start"] if len(slots) > 1 else f"{sched_date}T10:30:00"
+
         meeting = schedule_meeting(
             title=f"Interview: {c.candidate_name}",
-            time=tm.isoformat(),
+            time=tech_time,
             duration=60,
             attendees=[f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com"],
         )
@@ -104,7 +143,7 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             candidate_id=c.candidate_id,
             candidate_name=c.candidate_name,
             interview_type="technical",
-            scheduled_time=tm.isoformat(),
+            scheduled_time=tech_time,
             meeting_link=meet_link,
             status="scheduled"
         ))
@@ -114,7 +153,7 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             candidate_id=c.candidate_id,
             candidate_name=c.candidate_name,
             interview_type="behavioral",
-            scheduled_time=(tm + timedelta(hours=3)).isoformat(),
+            scheduled_time=behav_time,
             meeting_link=meet_link,
             status="scheduled"
         ))
@@ -122,7 +161,7 @@ async def _handle_scheduling(state: SharedState) -> SharedState:
             to_email=f"{str(c.candidate_name).lower().replace(' ', '.')}@email.com",
             candidate_name=c.candidate_name,
             job_title=state.job_title,
-            interview_time=tm.isoformat(),
+            interview_time=tech_time,
             meeting_link=meet_link,
         )
 
@@ -145,13 +184,17 @@ async def _handle_interview_analysis(
         assessments_dicts = _generate_mock_assessments(cands)
     else:
         try:
-            res = await llm.ainvoke([SystemMessage(content=INTERVIEWER_PROMPT), HumanMessage(content=f"Data: {chr(10).join(transcripts)}")])
-            content = _coerce_llm_text(res.content)
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0]
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0]
-            assessments_dicts = json.loads(content.strip())
+            # Anonymize transcripts before sending to LLM
+            candidate_names = [c.candidate_name for c in state.scored_candidates]
+            anonymized = [
+                _anonymize_transcript(t, candidate_names) for t in transcripts
+            ]
+            structured_llm = llm.with_structured_output(InterviewAssessmentList)
+            result = await structured_llm.ainvoke([
+                SystemMessage(content=INTERVIEWER_PROMPT),
+                HumanMessage(content=f"Data: {chr(10).join(anonymized)}"),
+            ])
+            assessments_dicts = [a.model_dump() for a in result.assessments]
         except Exception as e:
             logger.error(f"Failed to parse LLM interview output: {e}")
             cands = {c.candidate_id: c.candidate_name for c in state.scored_candidates}
@@ -170,6 +213,8 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
     """Purely Deterministic Rule Engine for Final Decisions. ZERO LLM OR RANDOMNESS."""
     scored = state.scored_candidates
     assessments_dict = {a.candidate_id: a for a in state.interview_assessments}
+    w_scr = state.decision_weights.screening
+    w_int = state.decision_weights.interview
     
     recommendations = []
     traces: list[DecisionTrace] = []
@@ -186,30 +231,40 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
             int_score = 50.0  # Default middle ground
             missing_crit = 0
             
-        # Hard Rule: 40% initial screen + 60% interview
-        weighted = (scr_score * 0.4) + (int_score * 0.6)
+        # Dynamic weight split from state.decision_weights
+        weighted = (scr_score * w_scr) + (int_score * w_int)
         
         # Hard Rules for Decision
-        if weighted >= 75 and missing_crit < 3:
+        if weighted >= 90 and missing_crit == 0:
+            decision = "strong_hire"
+        elif weighted >= 75 and missing_crit < 3:
             decision = "hire"
         elif weighted >= 60:
             decision = "maybe"
         else:
             decision = "no_hire"
-            
-        reasoning = f"Determined by deterministic formula: Screening={scr_score} (40%), Interview={round(int_score, 1)} (60%). Weighted={round(weighted, 1)}. Concerns={missing_crit}."
+
+        scr_pct = round(w_scr * 100)
+        int_pct = round(w_int * 100)
+        reasoning = f"Determined by deterministic formula: Screening={scr_score} ({scr_pct}%), Interview={round(int_score, 1)} ({int_pct}%). Weighted={round(weighted, 1)}. Concerns={missing_crit}."
             
         recommendations.append(Recommendation(
             candidate_id=cid,
             candidate_name=sc.candidate_name,
             decision=decision,
             confidence=round(weighted, 1),
-            screening_weight=round(scr_score * 0.4, 1),
-            interview_weight=round(int_score * 0.6, 1),
+            screening_weight=round(scr_score * w_scr, 1),
+            interview_weight=round(int_score * w_int, 1),
             overall_weighted_score=round(weighted, 1),
             reasoning=reasoning,
             risk_factors=sc.gaps + (assessment.concerns if assessment else [])
         ))
+        rule_desc = (
+            f"weighted>=90&&concerns==0=>strong_hire; "
+            f"weighted>=75&&concerns<3=>hire; "
+            f"weighted>=60=>maybe; else no_hire "
+            f"(screening_w={w_scr}, interview_w={w_int})"
+        )
         traces.append(
             DecisionTrace(
                 candidate_id=cid,
@@ -219,12 +274,13 @@ async def _handle_final_decision(state: SharedState) -> SharedState:
                 concerns_count=missing_crit,
                 weighted_score=round(weighted, 1),
                 decision=decision,
-                rule_applied="weighted>=75&&concerns<3=>hire; weighted>=60=>maybe; else no_hire",
+                rule_applied=rule_desc,
             )
         )
 
-    # Sort so hires are at the top
-    recommendations.sort(key=lambda x: (x.decision == 'hire', x.overall_weighted_score), reverse=True)
+    # Sort so strong_hire/hire are at the top
+    _decision_rank = {"strong_hire": 3, "hire": 2, "maybe": 1, "no_hire": 0}
+    recommendations.sort(key=lambda x: (_decision_rank.get(x.decision, 0), x.overall_weighted_score), reverse=True)
 
     state.final_recommendations = recommendations
     state.decision_traces = traces
@@ -283,23 +339,32 @@ async def _handle_offer_generation(
     return state
 
 
-# --- Utilities ---
+# --- Mock Assessments ---
 
 def _generate_mock_assessments(candidates: dict) -> list[dict]:
     assessments = []
     for cid, name in candidates.items():
-        tech, comm, prob, cult = 8.5, 8.0, 7.5, 9.0
-        overall = (tech + comm + prob + cult) / 4.0
+        seed = hash(cid) % 1000
+        tech = 6.0 + (seed % 40) / 10.0           # 6.0-9.9
+        comm = 6.0 + ((seed * 7) % 40) / 10.0
+        prob = 6.0 + ((seed * 13) % 40) / 10.0
+        cult = 6.0 + ((seed * 19) % 40) / 10.0
+        overall = round((tech + comm + prob + cult) / 4.0, 2)
+        concerns: list[str] = []
+        if overall < 7.5:
+            concerns.append("Below-average overall score may indicate gaps")
+            if tech < 7.0:
+                concerns.append("Technical skills need further validation")
         assessments.append({
-            "candidate_id": cid, 
-            "candidate_name": name, 
-            "technical_score": tech,
-            "communication_score": comm,
-            "problem_solving_score": prob,
-            "cultural_fit_score": cult,
-            "overall_score": overall, 
-            "key_observations": ["Strong candidate"], 
-            "concerns": [],
-            "transcript_summary": "Good mock interview."
+            "candidate_id": cid,
+            "candidate_name": name,
+            "technical_score": round(tech, 1),
+            "communication_score": round(comm, 1),
+            "problem_solving_score": round(prob, 1),
+            "cultural_fit_score": round(cult, 1),
+            "overall_score": overall,
+            "key_observations": ["Strong candidate"] if overall >= 7.5 else ["Average performance"],
+            "concerns": concerns,
+            "transcript_summary": "Good mock interview." if overall >= 7.5 else "Adequate mock interview with some areas for improvement."
         })
     return assessments

@@ -7,12 +7,14 @@ the job description and their specific resume/gap analysis.
 from __future__ import annotations
 
 import logging
+import re
 from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
 from app.models.state import PipelineStage, SharedState, OutreachEmail
+from app.agents.structured_outputs import OutreachEmailSchema
 
 try:
     from sendgrid import SendGridAPIClient
@@ -33,7 +35,7 @@ GUIDELINES:
 4. Include a clear call-to-action (e.g., "Are you open to a brief chat next week?").
 5. Keep it concise (under 200 words).
 
-OUTPUT FORMAT: Return a JSON object with "subject" and "body" keys."""
+OUTPUT FORMAT: Return the subject line and email body."""
 
 def _response_to_text(content: object) -> str:
     """Normalize LangChain response content into plain text."""
@@ -104,23 +106,23 @@ Context (JD):
                     temperature=0.7,
                     api_key=SecretStr(settings.openai_api_key),
                 )
-                # Use structured output if possible, but simple JSON parse for now
-                response = await llm.ainvoke(messages)
-                import json
-                try:
-                    # Attempt to extract JSON from markdown if necessary
-                    content = _response_to_text(response.content).strip()
-                    if "```json" in content:
-                        content = content.split("```json")[1].split("```")[0].strip()
-                    email_data = json.loads(content)
-                except Exception:
-                    email_data = {
-                        "subject": f"Opportunity at PRO HR: {job_title}",
-                        "body": _response_to_text(response.content)
-                    }
+                structured_llm = llm.with_structured_output(OutreachEmailSchema)
+                email_data = await structured_llm.ainvoke(messages)
 
-                email_subject = str(email_data.get("subject", ""))
-                email_body = str(email_data.get("body", ""))
+                email_subject = email_data.subject
+                email_body = email_data.body
+
+                # Post-generation placeholder detection
+                placeholder_re = re.compile(r'\[\w[\w\s]*\]|\{\w[\w\s]*\}')
+                for field_name, field_value in [("subject", email_subject), ("body", email_body)]:
+                    placeholders = placeholder_re.findall(field_value)
+                    if placeholders:
+                        logger.warning(
+                            "Unresolved placeholders in %s for %s: %s",
+                            field_name, candidate.candidate_name, placeholders,
+                        )
+                email_subject = placeholder_re.sub("", email_subject)
+                email_body = placeholder_re.sub("", email_body)
                 
                 # Phase 4.4.1: Live Email Integration via SendGrid
                 dispatch_status = "drafted"

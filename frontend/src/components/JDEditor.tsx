@@ -4,10 +4,11 @@ import { useState } from "react";
 
 interface JDEditorProps {
     initialValue: string;
-    onChange: (value: string) => void;
+    onChange?: (value: string) => void;
+    readOnly?: boolean;
 }
 
-export default function JDEditor({ initialValue, onChange }: JDEditorProps) {
+export default function JDEditor({ initialValue, onChange, readOnly }: JDEditorProps) {
     const [value, setValue] = useState(initialValue);
     const requiredSections = [
         "Role Summary",
@@ -20,9 +21,10 @@ export default function JDEditor({ initialValue, onChange }: JDEditorProps) {
     ];
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        if (readOnly) return;
         const newValue = e.target.value;
         setValue(newValue);
-        onChange(newValue);
+        if (onChange) onChange(newValue);
     };
 
     return (
@@ -81,6 +83,7 @@ export default function JDEditor({ initialValue, onChange }: JDEditorProps) {
                 <textarea
                     value={value}
                     onChange={handleChange}
+                    readOnly={readOnly}
                     spellCheck={false}
                     style={{
                         width: "100%",

@@ -151,6 +151,8 @@ class CandidateResponse(BaseModel):
     candidate_name: str
     response: str = ""
     engagement_level: str = "High"
+    intent: str = "interested"  # interested | declined | questions_asked | reschedule_request
+    extracted_questions: list[str] = Field(default_factory=list)
 
 
 class OfferRecord(BaseModel):
@@ -162,6 +164,21 @@ class OfferRecord(BaseModel):
     benefits_summary: str = ""
     valid_until: str = ""
     status: str = "draft"  # draft | sent | accepted | rejected
+
+
+class HumanFeedback(BaseModel):
+    """Structured feedback from a human reviewer."""
+    comments: str = ""
+    rejected_sections: list[str] = Field(default_factory=list)
+    requested_skills_to_add: list[str] = Field(default_factory=list)
+    requested_skills_to_remove: list[str] = Field(default_factory=list)
+    override_salary: str | None = None
+
+
+class DecisionWeights(BaseModel):
+    """Configurable weight split for the final hiring decision."""
+    screening: float = Field(default=0.4, ge=0.0, le=1.0)
+    interview: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
 class AuditEntry(BaseModel):
@@ -198,14 +215,17 @@ class SharedState(BaseModel):
     shortlist_approval: str = "pending"     # pending | approved | rejected
     hire_approval: str = "pending"          # pending | approved | rejected
     human_feedback: str = ""                # free-text feedback from reviewer
+    structured_feedback: HumanFeedback = Field(default_factory=HumanFeedback)
 
     # --- Agent 3: Scout output ---
     candidates: list[CandidateProfile] = Field(default_factory=list)
 
     # --- Agent 4: Screener output ---
     scored_candidates: list[ScoredCandidate] = Field(default_factory=list)
+    target_experience_years: int = 5  # dynamic baseline for screener scoring
 
     # --- Agent 7: Hiring Ops Coordinator (scheduling, assessment, recommendations) ---
+    decision_weights: DecisionWeights = Field(default_factory=DecisionWeights)
     scheduled_interviews: list[Interview] = Field(default_factory=list)
     interview_assessments: list[Assessment] = Field(default_factory=list)
     interview_transcripts: list[str] = Field(default_factory=list)

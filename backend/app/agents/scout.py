@@ -18,14 +18,15 @@ logger = logging.getLogger(__name__)
 async def scout_node(state: SharedState) -> SharedState:
     """Search for matching candidates using the approved JD and LLM reranker."""
     
-    # Build search query from JD + title + feedback
-    search_query = f"{state.job_title}\n\n{state.job_description}"
+    # Build a focused search query from title + top requirements
+    top_reqs = state.requirements[:5]
+    search_query = f"{state.job_title} {' '.join(top_reqs)}"
     if state.human_feedback:
-        search_query += f"\n\nHIRING MANAGER FEEDBACK FOR REFINEMENT: {state.human_feedback}"
+        search_query += f" {state.human_feedback}"
 
     # Perform semantic search (RAG Stage 1)
     try:
-        results = semantic_search(query=search_query, top_k=10)
+        results = semantic_search(query=search_query, top_k=10, required_skills=top_reqs)
     except Exception as e:
         logger.error(f"Semantic search failed: {e}")
         results = []
@@ -64,8 +65,18 @@ async def scout_node(state: SharedState) -> SharedState:
     # We pass it as dicts to reranker for backwards config compatibility but then load it back
     dict_candidates = [c.model_dump() for c in candidates]
     try:
-        dict_candidates = await rerank_candidates(search_query, dict_candidates)
-        candidates = [CandidateProfile(**c) for c in dict_candidates]
+        dict_candidates = await rerank_candidates(state.job_description, dict_candidates)
+        # Propagate reranker skill analysis into match_reason
+        for dc in dict_candidates:
+            parts = [dc.get("match_reason", "")]
+            matching = dc.pop("matching_skills", None)
+            missing = dc.pop("missing_skills_from_jd", None)
+            if matching:
+                parts.append(f"Matching skills: {', '.join(matching)}.")
+            if missing:
+                parts.append(f"Missing skills: {', '.join(missing)}.")
+            dc["match_reason"] = " ".join(parts)
+        candidates = [CandidateProfile(**dc) for dc in dict_candidates]
     except Exception as e:
         logger.error(f"Reranking stage failed: {e}")
 

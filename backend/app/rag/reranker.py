@@ -6,6 +6,7 @@ vector search to provide high-fidelity match reasoning.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -14,8 +15,11 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.config import settings
+from app.agents.structured_outputs import RerankerResult
 
 logger = logging.getLogger(__name__)
+
+RERANKER_MODEL = "gpt-4o-mini"
 
 RERANKER_PROMPT = """You are a Recruitment Intelligence Reranker. 
 Given a Job Description and a candidate's profile, provide a concise (1-2 sentence) 
@@ -24,13 +28,6 @@ reason for the match, and a final refined match score (0-100).
 Focus on why the specific skills or experience make them a good fit. 
 Return ONLY a JSON object: {"reason": "...", "refined_score": 85}"""
 
-
-def _coerce_llm_text(content: object) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(str(part) for part in content)
-    return str(content)
 
 async def rerank_candidates(jd_text: str, candidates: list[dict]) -> list[dict]:
     """Perform LLM-based reranking on the top candidates.
@@ -46,50 +43,49 @@ async def rerank_candidates(jd_text: str, candidates: list[dict]) -> list[dict]:
         return []
 
     llm = ChatOpenAI(
-        model=settings.llm_model,
+        model=RERANKER_MODEL,
         temperature=0,
         api_key=SecretStr(settings.openai_api_key) if settings.openai_api_key else None,
-    )
+    ).with_structured_output(RerankerResult)
 
-    reranked = []
-    # Rerank only top 3 to keep it fast and cost-effective
-    top_n = candidates[:3]
-    rest = candidates[3:]
+    # Rerank top 10 candidates concurrently
+    top_n = candidates[:10]
+    rest = candidates[10:]
+    semaphore = asyncio.Semaphore(5)
 
-    for cand in top_n:
-        try:
-            raw_skills = cand.get("skills", [])
-            skills = raw_skills if isinstance(raw_skills, list) else [str(raw_skills)]
-            resume_text = str(cand.get("resume_text", ""))
-            profile = (
-                f"Name: {cand.get('name')}\n"
-                f"Skills: {', '.join(str(s) for s in skills)}\n"
-                f"Exp: {cand.get('experience_years')} years\n"
-                f"Summary: {resume_text[:1000]}"
-            )
-            
-            res = await llm.ainvoke([
-                SystemMessage(content=RERANKER_PROMPT),
-                HumanMessage(content=f"JD: {jd_text}\n\nCandidate Profile:\n{profile}")
-            ])
-            
-            content = _coerce_llm_text(res.content)
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0]
-            
-            data = json.loads(content.strip())
-            
-            cand["match_reason"] = data.get("reason", "Highly relevant profile matching core requirements.")
-            # Blend initial vector score with LLM refined score
-            # Vector score is usually 0.7-0.9, refined is 0-100
-            refined = data.get("refined_score", 80)
-            cand["relevance_score"] = round((cand["relevance_score"] * 0.4) + (refined / 100 * 0.6), 3)
-            
-        except Exception as e:
-            logger.error(f"Reranking failed for {cand.get('id')}: {e}")
-            cand["match_reason"] = "Semantic match based on experience and core tech stack."
-        
-        reranked.append(cand)
+    async def _rerank_one(cand: dict) -> dict:
+        async with semaphore:
+            try:
+                raw_skills = cand.get("skills", [])
+                skills = raw_skills if isinstance(raw_skills, list) else [str(raw_skills)]
+                resume_text = str(cand.get("resume_text", ""))
+                profile = (
+                    f"Name: {cand.get('name')}\n"
+                    f"Skills: {', '.join(str(s) for s in skills)}\n"
+                    f"Exp: {cand.get('experience_years')} years\n"
+                    f"Summary: {resume_text[:1000]}"
+                )
+
+                result: RerankerResult = await llm.ainvoke([
+                    SystemMessage(content=RERANKER_PROMPT),
+                    HumanMessage(content=f"JD: {jd_text}\n\nCandidate Profile:\n{profile}")
+                ])
+
+                cand["match_reason"] = result.reason
+                cand["matching_skills"] = result.matching_skills
+                cand["missing_skills_from_jd"] = result.missing_skills_from_jd
+                # Blend initial vector score with LLM refined score
+                refined = result.refined_score
+                cand["relevance_score"] = round(
+                    (cand["relevance_score"] * 0.4) + (refined / 100 * 0.6), 3
+                )
+            except Exception as e:
+                logger.error(f"Reranking failed for {cand.get('id')}: {e}")
+                cand["match_reason"] = "Semantic match based on experience and core tech stack."
+            return cand
+
+    reranked = await asyncio.gather(*[_rerank_one(c) for c in top_n])
+    reranked = list(reranked)
 
     # Add the rest without reasoning (or with fallback)
     for cand in rest:

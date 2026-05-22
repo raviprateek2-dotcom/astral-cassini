@@ -10,20 +10,25 @@ import json
 import asyncio
 
 from app.models.state import SharedState, PipelineStage, ScoredCandidate
+from app.agents.skill_synonyms import skills_match
 
-async def _score_candidate(c, requirements, semaphore: asyncio.Semaphore) -> ScoredCandidate:
+async def _score_candidate(
+    c,
+    requirements,
+    semaphore: asyncio.Semaphore,
+    target_experience_years: int = 5,
+) -> ScoredCandidate:
     async with semaphore:
         # Future-proofing: Simulated I/O delay for future multi-modal LLM API integration.
         await asyncio.sleep(0.01)
 
-        # 1. Skills Match (0-25)
-        # Find intersection (case-insensitive substring matching)
+        # 1. Skills Match (0-25) — synonym-aware matching
         matched_skills = []
         missing_skills = []
         for req in requirements:
             found = False
             for cand_skill in c.skills:
-                if req.lower() in cand_skill.lower() or cand_skill.lower() in req.lower():
+                if skills_match(req, cand_skill):
                     found = True
                     break
             if found:
@@ -34,14 +39,26 @@ async def _score_candidate(c, requirements, semaphore: asyncio.Semaphore) -> Sco
         skill_percent = len(matched_skills) / max(1, len(requirements))
         skills_score = round(skill_percent * 25.0, 1)
 
-        # 2. Experience Match (0-25)
-        exp_score = min(25.0, (c.experience_years / max(1, 5.0)) * 25.0)
+        # 2. Experience Match (0-25) — proximity to target
+        distance = abs(c.experience_years - target_experience_years) / max(1, target_experience_years)
+        exp_score = max(0.0, 25.0 * (1.0 - distance))
 
-        # 3. Education Match (0-25)
-        edu_score = 25.0 if c.education else 12.5
-        
-        # 4. Cultural Fit (0-25)
-        cultural_score = 20.0
+        # 3. Education Match (0-25) — field-of-study alignment
+        _STEM_KEYWORDS = [
+            "computer", "software", "data", "engineering",
+            "information", "mathematics", "statistics",
+            "physics", "ai", "machine learning",
+        ]
+        if c.education:
+            edu_lower = c.education.lower()
+            edu_score = 25.0 if any(kw in edu_lower for kw in _STEM_KEYWORDS) else 15.0
+        else:
+            edu_score = 15.0
+
+        # 4. Cultural Fit (0-25) — base 15 + experience proximity bonus
+        cultural_score = 15.0
+        if abs(c.experience_years - target_experience_years) <= target_experience_years * 0.3:
+            cultural_score += 5.0
         
         # Overall Score
         overall = min(100.0, skills_score + exp_score + edu_score + cultural_score)
@@ -77,7 +94,8 @@ async def screener_node(state: SharedState) -> SharedState:
     semaphore = asyncio.Semaphore(10)
     
     # Process all candidates concurrently
-    tasks = [_score_candidate(c, requirements, semaphore) for c in candidates]
+    target_exp = state.target_experience_years
+    tasks = [_score_candidate(c, requirements, semaphore, target_experience_years=target_exp) for c in candidates]
     scored_candidates = await asyncio.gather(*tasks)
 
     # Sort by overall score descending

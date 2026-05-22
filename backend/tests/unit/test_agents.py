@@ -50,7 +50,7 @@ async def test_screener_node_scores(mock_state):
     assert len(updated_state.scored_candidates) == 1
     score = updated_state.scored_candidates[0]
     assert 0 <= score.overall_score <= 100
-    assert score.overall_score == 74.2 # (16.7 skill + 25.0 exp + 12.5 edu + 20.0 cultural)
+    assert score.overall_score == 76.7 # (16.7 skill + 25.0 exp + 15.0 edu + 20.0 cultural)
     assert updated_state.current_stage == PipelineStage.SHORTLIST_REVIEW.value
 
 @pytest.mark.asyncio

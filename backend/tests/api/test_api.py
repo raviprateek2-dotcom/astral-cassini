@@ -177,43 +177,50 @@ async def test_endpoint_not_found(client, db):
 async def test_ws_ticket_for_job(client, db):
     """GET /api/auth/ws-ticket returns a short-lived JWT bound to job_id."""
     from jose import jwt as jose_jwt
+    from app.config import settings
 
-    from app.core.auth import (
-        ALGORITHM,
-        SECRET_KEY,
-        WS_TOKEN_AUDIENCE,
-        create_access_token,
-        hash_password,
-    )
-    from app.core.orchestrator import start_workflow
-    from app.models.db_models import User
+    # Force auth enabled for this test so the ticket isn't mocked with sub=0
+    original_auth = settings.auth_disabled
+    settings.auth_disabled = False
+    try:
+        from app.core.auth import (
+            ALGORITHM,
+            SECRET_KEY,
+            WS_TOKEN_AUDIENCE,
+            create_access_token,
+            hash_password,
+        )
+        from app.core.orchestrator import start_workflow
+        from app.models.db_models import User
 
-    user = User(
-        email="ws-ticket-test@example.com",
-        full_name="WS Ticket Test",
-        hashed_password=hash_password("unused"),
-        role="hr_manager",
-        is_active=True,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+        user = User(
+            email="ws-ticket-test@example.com",
+            full_name="WS Ticket Test",
+            hashed_password=hash_password("unused"),
+            role="hr_manager",
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    result = await start_workflow(db, user.id, "WS Test Role", "Eng", ["Python"])
-    job_id = result["job_id"]
+        result = await start_workflow(db, user.id, "WS Test Role", "Eng", ["Python"])
+        job_id = result["job_id"]
 
-    token = create_access_token({"sub": str(user.id), "role": user.role})
-    client.cookies.set("access_token", token)
-    response = client.get("/api/auth/ws-ticket", params={"job_id": job_id})
-    assert response.status_code == status.HTTP_200_OK
-    body = response.json()
-    assert "ticket" in body
-    assert body.get("aud") == WS_TOKEN_AUDIENCE
-    decoded = jose_jwt.decode(
-        body["ticket"], SECRET_KEY, algorithms=[ALGORITHM], audience=WS_TOKEN_AUDIENCE
-    )
-    assert decoded["job_id"] == job_id
-    assert decoded["sub"] == str(user.id)
+        token = create_access_token({"sub": str(user.id), "role": user.role})
+        client.cookies.set("access_token", token)
+        response = client.get("/api/auth/ws-ticket", params={"job_id": job_id})
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert "ticket" in body
+        assert body.get("aud") == WS_TOKEN_AUDIENCE
+        decoded = jose_jwt.decode(
+            body["ticket"], SECRET_KEY, algorithms=[ALGORITHM], audience=WS_TOKEN_AUDIENCE
+        )
+        assert decoded["job_id"] == job_id
+        assert decoded["sub"] == str(user.id)
+    finally:
+        settings.auth_disabled = original_auth
 
 
 @pytest.mark.asyncio
@@ -571,19 +578,25 @@ async def test_cookie_auth_mutation_requires_csrf_header(client):
 @pytest.mark.asyncio
 async def test_cookie_auth_patch_requires_csrf_header(client):
     """Cookie-authenticated PATCH must provide matching CSRF header (same middleware as POST)."""
-    client.cookies.set("access_token", "dummy-session-token")
-    client.cookies.set("csrf_token", "csrf-abc")
+    from app.config import settings
+    original_auth = settings.auth_disabled
+    settings.auth_disabled = False
+    try:
+        client.cookies.set("access_token", "dummy-session-token")
+        client.cookies.set("csrf_token", "csrf-abc")
 
-    denied = client.patch("/api/workflow/not-a-real-job/state", json={"action": "manual_patch"})
-    assert denied.status_code == status.HTTP_403_FORBIDDEN
-    assert "CSRF" in str(denied.json().get("detail", ""))
+        denied = client.patch("/api/workflow/not-a-real-job/state", json={"action": "manual_patch", "state_updates": {}})
+        assert denied.status_code == status.HTTP_403_FORBIDDEN
+        assert "CSRF" in str(denied.json().get("detail", ""))
 
-    allowed = client.patch(
-        "/api/workflow/not-a-real-job/state",
-        json={"action": "manual_patch"},
-        headers={"x-csrf-token": "csrf-abc"},
-    )
-    assert allowed.status_code == status.HTTP_401_UNAUTHORIZED
+        allowed = client.patch(
+            "/api/workflow/not-a-real-job/state",
+            json={"action": "manual_patch", "state_updates": {}},
+            headers={"x-csrf-token": "csrf-abc"},
+        )
+        assert allowed.status_code == status.HTTP_401_UNAUTHORIZED
+    finally:
+        settings.auth_disabled = original_auth
 
 
 @pytest.mark.asyncio
