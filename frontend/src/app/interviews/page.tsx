@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { EmptyState } from "@/components/EmptyState";
 import type {
     AssessmentRow,
@@ -29,6 +30,55 @@ export default function InterviewsPage() {
         duration_minutes: 60,
     });
     const router = useRouter();
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [typeFilter, setTypeFilter] = useState("All");
+
+    const { heartbeat } = useWebSocket(selectedJob || null);
+
+    const tryParseJSON = (data: unknown) => {
+        if (typeof data === "string") {
+            try {
+                const o = JSON.parse(data);
+                if (o && typeof o === "object") return o;
+            } catch { return null; }
+        } else if (data && typeof data === "object") {
+            return data;
+        }
+        return null;
+    };
+
+    const StructuredDetails = ({ data, label = "Structured Details" }: { data: unknown, label?: string }) => {
+        const [expanded, setExpanded] = useState(false);
+        const jsonObj = tryParseJSON(data);
+        if (!jsonObj) {
+            return typeof data === "string" ? <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>• {data}</p> : null;
+        }
+        return (
+            <div style={{ marginTop: 4 }}>
+                <button 
+                    onClick={() => setExpanded(!expanded)}
+                    style={{ background: "transparent", border: "none", color: "var(--accent-cyan)", cursor: "pointer", fontSize: "0.8rem", padding: 0, fontWeight: 600 }}
+                >
+                    {expanded ? "▼ Hide " + label : "▶ View " + label}
+                </button>
+                {expanded && (
+                    <pre style={{ 
+                        background: "rgba(0,0,0,0.3)", 
+                        padding: 12, 
+                        borderRadius: 8, 
+                        fontSize: "0.75rem",
+                        overflowX: "auto",
+                        marginTop: 4,
+                        color: "var(--text-secondary)",
+                        border: "1px solid var(--border-glass)"
+                    }}>
+                        {JSON.stringify(jsonObj, null, 2)}
+                    </pre>
+                )}
+            </div>
+        );
+    };
 
     useEffect(() => {
         api.listJobs().then(setJobs).catch(() => { }).finally(() => setLoading(false));
@@ -101,8 +151,42 @@ export default function InterviewsPage() {
         setOfferBusy(false);
     }
 
-    const interviews = data?.scheduled_interviews || [];
-    const assessments = data?.interview_assessments || [];
+    const interviews = (heartbeat?.state?.scheduled_interviews as InterviewRow[]) ?? data?.scheduled_interviews ?? [];
+    const assessments = (heartbeat?.state?.interview_assessments as AssessmentRow[]) ?? data?.interview_assessments ?? [];
+    
+    const uniqueTypes = Array.from(new Set(interviews.map((i) => i.interview_type).filter(Boolean))).sort() as string[];
+
+    const filteredInterviews = interviews.filter((int) => {
+        if (typeFilter !== "All" && int.interview_type !== typeFilter) return false;
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const text = `${int.candidate_name} ${int.interview_type} ${int.status}`.toLowerCase();
+            if (!text.includes(query)) return false;
+        }
+        return true;
+    });
+
+    const exportCSV = () => {
+        if (!filteredInterviews.length) return;
+        const headers = ["Candidate", "Type", "Scheduled", "Duration", "Status"];
+        const rows = filteredInterviews.map((int) => [
+            int.candidate_name || "",
+            int.interview_type || "",
+            int.scheduled_time ? String(int.scheduled_time) : "",
+            int.duration_minutes || "",
+            int.status || "",
+        ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","));
+        
+        const csvContent = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `interviews_${selectedJob}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
         <div className="fade-in">
@@ -152,7 +236,7 @@ export default function InterviewsPage() {
                         <button className="btn-primary" onClick={() => void handleSendInvite()} disabled={inviteBusy}>
                             {inviteBusy ? "Sending..." : "Send Meeting Link to Student"}
                         </button>
-                        <span className="badge badge-blue">Stage: {jobStage || "unknown"}</span>
+                        <span className="badge badge-blue">Stage: {heartbeat?.current_stage || jobStage || "unknown"}</span>
                     </div>
                 </div>
             )}
@@ -164,9 +248,33 @@ export default function InterviewsPage() {
             {/* Scheduled Interviews */}
             {interviews.length > 0 && (
                 <div className="glass-card" style={{ padding: 24, marginBottom: 24 }}>
-                    <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 20px" }}>
-                        📅 Scheduled Interviews ({interviews.length})
-                    </h2>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
+                        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>
+                            📅 Scheduled Interviews ({filteredInterviews.length})
+                        </h2>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <input 
+                                type="text"
+                                className="input"
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                style={{ width: 200, padding: "6px 12px", fontSize: "0.85rem" }}
+                            />
+                            <select 
+                                className="input"
+                                value={typeFilter}
+                                onChange={e => setTypeFilter(e.target.value)}
+                                style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                            >
+                                <option value="All">All Types</option>
+                                {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                            <button onClick={exportCSV} className="btn-secondary" style={{ padding: "6px 12px", fontSize: "0.85rem", cursor: "pointer", background: "rgba(255,255,255,0.1)", border: "1px solid var(--border-glass)", color: "white", borderRadius: "8px" }}>
+                                ⬇ Export CSV
+                            </button>
+                        </div>
+                    </div>
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -181,7 +289,7 @@ export default function InterviewsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {interviews.map((int: InterviewRow, i: number) => (
+                            {filteredInterviews.map((int: InterviewRow, i: number) => (
                                 <tr key={i}>
                                     <td style={{ fontWeight: 600 }}>{int.candidate_name}</td>
                                     <td>
@@ -295,7 +403,7 @@ export default function InterviewsPage() {
                                     <div style={{ marginBottom: 8 }}>
                                         <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-emerald)", margin: "0 0 4px" }}>Key Observations</p>
                                         {a.key_observations.map((o: unknown, j: number) => (
-                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>• {String(o)}</p>
+                                            <StructuredDetails key={j} data={o} label="Observation Details" />
                                         ))}
                                     </div>
                                 )}
@@ -304,7 +412,7 @@ export default function InterviewsPage() {
                                     <div>
                                         <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent-amber)", margin: "0 0 4px" }}>Concerns</p>
                                         {a.concerns.map((c: unknown, j: number) => (
-                                            <p key={j} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", margin: "2px 0" }}>⚠ {String(c)}</p>
+                                            <StructuredDetails key={j} data={c} label="Concern Details" />
                                         ))}
                                     </div>
                                 )}

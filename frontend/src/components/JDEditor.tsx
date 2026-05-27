@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface JDEditorProps {
     initialValue: string;
@@ -19,6 +19,10 @@ export default function JDEditor({ initialValue, onChange, readOnly }: JDEditorP
         "Interview Process",
         "Equal Opportunity Statement",
     ];
+
+    useEffect(() => {
+        setValue(initialValue);
+    }, [initialValue]);
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         if (readOnly) return;

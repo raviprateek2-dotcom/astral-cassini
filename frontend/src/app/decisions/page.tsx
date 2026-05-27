@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import type { DecisionTraceRow, JobListItem, RecommendationRow } from "@/types/domain";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { Search, Download } from "lucide-react";
 
 export default function DecisionsPage() {
     const [jobs, setJobs] = useState<JobListItem[]>([]);
@@ -10,6 +12,10 @@ export default function DecisionsPage() {
     const [recs, setRecs] = useState<RecommendationRow[]>([]);
     const [traces, setTraces] = useState<DecisionTraceRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filterDecision, setFilterDecision] = useState("");
+
+    const { heartbeat } = useWebSocket(selectedJob || null);
 
     useEffect(() => {
         api.listJobs().then(setJobs).catch(() => { }).finally(() => setLoading(false));
@@ -29,35 +35,125 @@ export default function DecisionsPage() {
         setLoading(false);
     }
 
+    const mergedRecs = useMemo(() => {
+        const list = [...recs];
+        if (heartbeat?.state) {
+            const hState = heartbeat.state as any;
+            if (hState.final_recommendations) list.push(...hState.final_recommendations);
+        }
+        return Array.from(new Map(list.map((r, index) => [r.candidate_id || `temp-${index}`, r])).values());
+    }, [recs, heartbeat]);
+
+    const mergedTraces = useMemo(() => {
+        const list = [...traces];
+        if (heartbeat?.state) {
+            const hState = heartbeat.state as any;
+            if (hState.decision_traces) list.push(...hState.decision_traces);
+        }
+        return Array.from(new Map(list.map((t, index) => [t.candidate_id || `temp-${index}`, t])).values());
+    }, [traces, heartbeat]);
+
+    const filteredRecs = useMemo(() => {
+        return mergedRecs.filter(r => {
+            if (searchQuery) {
+                const searchLower = searchQuery.toLowerCase();
+                const name = String(r.candidate_name || r.name || "").toLowerCase();
+                if (!name.includes(searchLower)) return false;
+            }
+            if (filterDecision) {
+                if (String(r.decision || "").toLowerCase() !== filterDecision.toLowerCase()) return false;
+            }
+            return true;
+        });
+    }, [mergedRecs, searchQuery, filterDecision]);
+
+    const exportCSV = () => {
+        if (filteredRecs.length === 0) return;
+        const headers = ["ID", "Name", "Decision", "Confidence", "Reasoning"];
+        const rows = filteredRecs.map(r => {
+            const id = r.candidate_id || "";
+            const name = r.candidate_name || r.name || "";
+            const decision = r.decision || "";
+            const conf = r.confidence || 0;
+            const reasoning = String(r.reasoning || "").replace(/"/g, '""');
+            return `"${id}","${name}","${decision}","${conf}","${reasoning}"`;
+        });
+        const csv = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `decisions_${selectedJob}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="fade-in">
-            <h1 style={{ fontSize: "2rem", fontWeight: 800, margin: "0 0 4px" }}>Final Decisions</h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 32px" }}>
-                Hire / No-Hire recommendations from Agent 7 (The Decider)
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
+                <div>
+                    <h1 style={{ fontSize: "2rem", fontWeight: 800, margin: "0 0 4px" }}>Final Decisions</h1>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+                        Hire / No-Hire recommendations from Agent 7 (The Decider)
+                    </p>
+                </div>
+                {selectedJob && (
+                    <button className="button button-outline" onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <Download size={16} /> Export CSV
+                    </button>
+                )}
+            </div>
 
-            <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
-                <select className="input" value={selectedJob} onChange={(e) => loadRecs(e.target.value)} style={{ maxWidth: 400 }}>
-                    <option value="">Select pipeline...</option>
-                    {jobs.map((j) => (
-                        <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
-                    ))}
-                </select>
+            <div className="glass-card" style={{ padding: 20, marginBottom: 24, display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 300px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Select Pipeline</label>
+                    <select className="input" value={selectedJob} onChange={(e) => loadRecs(e.target.value)} style={{ width: "100%" }}>
+                        <option value="">Select pipeline...</option>
+                        {jobs.map((j) => (
+                            <option key={j.job_id} value={j.job_id}>{j.job_title} — {j.department}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div style={{ flex: "1 1 200px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Filter by Decision</label>
+                    <select className="input" value={filterDecision} onChange={(e) => setFilterDecision(e.target.value)} style={{ width: "100%", opacity: selectedJob ? 1 : 0.5 }} disabled={!selectedJob}>
+                        <option value="">All Decisions</option>
+                        <option value="hire">Hire</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="no hire">No Hire</option>
+                    </select>
+                </div>
+
+                <div style={{ flex: "1 1 300px" }}>
+                    <label style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: 8, fontWeight: 600 }}>Search Candidates</label>
+                    <div style={{ position: "relative" }}>
+                        <Search size={18} style={{ position: "absolute", left: 14, top: 13, color: "var(--text-muted)" }} />
+                        <input 
+                            className="input" 
+                            placeholder="Search by name..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ paddingLeft: 44, width: "100%", opacity: selectedJob ? 1 : 0.5 }}
+                            disabled={!selectedJob}
+                        />
+                    </div>
+                </div>
             </div>
 
             {loading && selectedJob && (
                 <div style={{ display: "flex", justifyContent: "center", padding: 60 }}><div className="spinner" /></div>
             )}
 
-            {recs.length > 0 && (
+            {filteredRecs.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    {recs.map((r, i) => {
+                    {filteredRecs.map((r, i) => {
                         const decision = typeof r.decision === "string" ? r.decision : "";
                         const confidence = Number(r.confidence ?? 0);
                         const riskFactors = Array.isArray(r.risk_factors)
                             ? r.risk_factors.filter((rf): rf is string => typeof rf === "string")
                             : [];
-                        const trace = traces.find((t) => String(t.candidate_id ?? "") === String(r.candidate_id ?? ""));
+                        const trace = mergedTraces.find((t) => String(t.candidate_id ?? "") === String(r.candidate_id ?? ""));
                         return (
                         <div key={i} className="glass-card fade-in" style={{ padding: 28 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
@@ -148,10 +244,10 @@ export default function DecisionsPage() {
                 </div>
             )}
 
-            {selectedJob && !loading && recs.length === 0 && (
+            {selectedJob && !loading && filteredRecs.length === 0 && (
                 <div className="glass-card" style={{ padding: 40, textAlign: "center" }}>
                     <p style={{ fontSize: "2rem", margin: "0 0 12px" }}>⚖️</p>
-                    <p style={{ color: "var(--text-muted)" }}>No final decisions yet. Pipeline hasn&apos;t reached the decision stage.</p>
+                    <p style={{ color: "var(--text-muted)" }}>No matching decisions found.</p>
                 </div>
             )}
         </div>

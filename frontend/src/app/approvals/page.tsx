@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import JDEditor from "@/components/JDEditor";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import {
     auditLogEntriesFromUnknown,
     type JobDetail,
@@ -31,13 +32,223 @@ function missingJDSections(jd: string): string[] {
     return requiredJDSections.filter((s) => !content.includes(s.toLowerCase()));
 }
 
+function JobApprovalCard({ job, initialDetail, onApprove, onReject, onDelete, actionLoading }: { job: JobListItem, initialDetail?: JobDetail, onApprove: (jobId: string, fb: string, editedJD?: string) => Promise<void>, onReject: (jobId: string, fb: string) => Promise<void>, onDelete: (jobId: string) => Promise<void>, actionLoading: string | null }) {
+    const { heartbeat } = useWebSocket(job.job_id);
+    const [feedback, setFeedback] = useState("");
+    const [editedJD, setEditedJD] = useState("");
+
+    const rawState = heartbeat?.state || initialDetail?.state;
+    const detail: WorkflowBlob = rawState && typeof rawState === "object" && !Array.isArray(rawState) ? (rawState as WorkflowBlob) : {};
+    
+    const jobDescription = typeof detail.job_description === "string" ? detail.job_description : "";
+    const scoredCandidates = Array.isArray(detail.scored_candidates) ? detail.scored_candidates : [];
+    const finalRecommendations = Array.isArray(detail.final_recommendations) ? detail.final_recommendations : [];
+    
+    const topAuditLog = auditLogEntriesFromUnknown(heartbeat?.state?.audit_log || initialDetail?.audit_log);
+    const currentStage = heartbeat?.current_stage || job.current_stage;
+    const isLoading = actionLoading === job.job_id;
+
+    const handleApprove = () => {
+        if (currentStage === "jd_review") {
+            const jdToValidate = (editedJD.trim().length > 0 ? editedJD : jobDescription) || "";
+            const missing = missingJDSections(jdToValidate);
+            if (missing.length > 0) {
+                alert(`JD approval blocked. Missing sections: ${missing.join(", ")}`);
+                return;
+            }
+        }
+        onApprove(job.job_id, feedback, editedJD);
+    };
+
+    return (
+        <div className="glass-card fade-in" style={{ padding: 28 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                <div>
+                    <span className="badge badge-amber" style={{ marginBottom: 8, display: "inline-block" }}>
+                        {stageLabels[currentStage] || currentStage}
+                    </span>
+                    <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: "8px 0 0" }}>
+                        {job.job_title}
+                    </h2>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "4px 0 0" }}>
+                        {job.department} • ID: {job.job_id}
+                    </p>
+                </div>
+                {heartbeat && (
+                    <span className="pulse-active" style={{
+                        display: "inline-block",
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "var(--accent-emerald)",
+                        marginRight: 8
+                    }} title="Live Connection Active" />
+                )}
+            </div>
+
+            {currentStage === "jd_review" && jobDescription.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                    <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
+                        📝 Review & Refine JD
+                    </h3>
+                    <JDEditor 
+                        initialValue={jobDescription} 
+                        onChange={setEditedJD} 
+                    />
+                </div>
+            )}
+
+            {currentStage === "shortlist_review" && scoredCandidates.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                    <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
+                        📊 Candidate Shortlist
+                    </h3>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Candidate</th>
+                                <th>Score</th>
+                                <th>Strengths</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {scoredCandidates.map((raw, i) => {
+                                const c = raw as Record<string, unknown>;
+                                const name = typeof c.candidate_name === "string" ? c.candidate_name : "";
+                                const score = Number(c.overall_score ?? 0);
+                                const strengths = Array.isArray(c.strengths)
+                                    ? c.strengths.filter((s): s is string => typeof s === "string")
+                                    : [];
+                                return (
+                                <tr key={i}>
+                                    <td style={{ fontWeight: 600 }}>{name}</td>
+                                    <td>
+                                        <span style={{
+                                            fontWeight: 700,
+                                            color: score >= 80 ? "var(--accent-emerald)" : score >= 60 ? "var(--accent-amber)" : "var(--accent-rose)",
+                                        }}>
+                                            {Math.round(score)}/100
+                                        </span>
+                                    </td>
+                                    <td style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                                        {strengths.join(", ")}
+                                    </td>
+                                </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {currentStage === "hire_review" && finalRecommendations.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                    <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
+                        ⚖️ Final Recommendations
+                    </h3>
+                    {finalRecommendations.map((raw, i) => {
+                        const r = raw as Record<string, unknown>;
+                        const name = typeof r.candidate_name === "string" ? r.candidate_name : "";
+                        const reasoning = typeof r.reasoning === "string" ? r.reasoning : "";
+                        const decision = typeof r.decision === "string" ? r.decision : "";
+                        const confidence = Number(r.confidence ?? 0);
+                        return (
+                        <div key={i} style={{
+                            padding: 16,
+                            borderRadius: 10,
+                            border: "1px solid var(--border-glass)",
+                            marginBottom: 8,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}>
+                            <div>
+                                <p style={{ fontWeight: 600, margin: 0 }}>{name}</p>
+                                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
+                                    {reasoning.slice(0, 100)}...
+                                </p>
+                            </div>
+                            <span className={`badge ${decision === "hire" ? "badge-emerald" :
+                                    decision === "maybe" ? "badge-amber" : "badge-rose"
+                                }`}>
+                                {decision.toUpperCase()} ({Math.round(confidence)}%)
+                            </span>
+                        </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            <div style={{ 
+                padding: 16, 
+                borderRadius: 12, 
+                background: "rgba(16, 185, 129, 0.05)", 
+                border: "1px dashed rgba(16, 185, 129, 0.3)",
+                marginBottom: 20 
+            }}>
+                <h4 style={{ margin: "0 0 8px", fontSize: "0.75rem", fontWeight: 700, color: "var(--accent-emerald)", display: "flex", alignItems: "center", gap: 6 }}>
+                    🛡️ Governance Audit Trail
+                </h4>
+                {topAuditLog
+                    .filter((l) => l.action === "bias_audit")
+                    .map((l, i) => (
+                        <div key={i} style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", gap: 8 }}>
+                            <span style={{ color: "var(--accent-emerald)" }}>•</span>
+                            <span>{l.details}</span>
+                        </div>
+                    ))}
+                {!topAuditLog.some((l) => l.action === "bias_audit") && (
+                    <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>
+                        Waiting for agent compliance verification...
+                    </p>
+                )}
+            </div>
+
+            <div>
+                <textarea
+                    className="input"
+                    placeholder="Add feedback (required for rejection)..."
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    style={{ marginBottom: 12, minHeight: 60 }}
+                />
+                <div style={{ display: "flex", gap: 12 }}>
+                    <button
+                        className="btn-success"
+                        onClick={handleApprove}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? "Processing..." : "✅ Approve & Continue"}
+                    </button>
+                    <button
+                        className="btn-danger"
+                        onClick={() => onReject(job.job_id, feedback)}
+                        disabled={isLoading}
+                    >
+                        ✕ Reject & Revise
+                    </button>
+                    <button
+                        className="btn-outline"
+                        onClick={() => onDelete(job.job_id)}
+                        disabled={isLoading}
+                        title="Delete this pipeline"
+                    >
+                        🗑️ Delete Pipeline
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function ApprovalsPage() {
     const [jobs, setJobs] = useState<JobListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
-    const [feedback, setFeedback] = useState<Record<string, string>>({});
     const [details, setDetails] = useState<Record<string, JobDetail>>({});
-    const [editedJDs, setEditedJDs] = useState<Record<string, string>>({});
+    
+    const [searchQuery, setSearchQuery] = useState("");
+    const [stageFilter, setStageFilter] = useState("All");
 
     function isPendingApproval(job: JobListItem, state?: WorkflowBlob): boolean {
         const stage = job.current_stage;
@@ -91,7 +302,6 @@ export default function ApprovalsPage() {
                     nextDetails[job.job_id] = detail;
                 }
 
-                // If details fail/timeout, keep review-stage job visible instead of freezing the page.
                 if (detail ? isPendingApproval(job, state) : true) {
                     pending.push(job);
                 }
@@ -116,40 +326,23 @@ export default function ApprovalsPage() {
         return () => { isMounted = false; };
     }, [loadJobs]);
 
-    async function handleApprove(jobId: string) {
-        const job = jobs.find((j) => j.job_id === jobId);
-        const rawState = details[jobId]?.state;
-        const detail: WorkflowBlob =
-            rawState && typeof rawState === "object" && !Array.isArray(rawState)
-                ? (rawState as WorkflowBlob)
-                : {};
-        if (job?.current_stage === "jd_review") {
-            const jdToValidate =
-                (editedJDs[jobId] && editedJDs[jobId].trim().length > 0
-                    ? editedJDs[jobId]
-                    : (typeof detail.job_description === "string" ? detail.job_description : "")) || "";
-            const missing = missingJDSections(jdToValidate);
-            if (missing.length > 0) {
-                alert(`JD approval blocked. Missing sections: ${missing.join(", ")}`);
-                return;
-            }
-        }
+    async function handleApprove(jobId: string, fb: string, editedJD?: string) {
         setActionLoading(jobId);
         try {
-            await api.approveStage(jobId, feedback[jobId] || "", editedJDs[jobId]);
+            await api.approveStage(jobId, fb || "", editedJD);
             await loadJobs();
         } catch { }
         setActionLoading(null);
     }
 
-    async function handleReject(jobId: string) {
-        if (!feedback[jobId]) {
+    async function handleReject(jobId: string, fb: string) {
+        if (!fb) {
             alert("Please provide feedback for rejection.");
             return;
         }
         setActionLoading(jobId);
         try {
-            await api.rejectStage(jobId, feedback[jobId]);
+            await api.rejectStage(jobId, fb);
             await loadJobs();
         } catch { }
         setActionLoading(null);
@@ -165,6 +358,37 @@ export default function ApprovalsPage() {
         } catch { }
         setActionLoading(null);
     }
+
+    const filteredJobs = jobs.filter(job => {
+        if (stageFilter !== "All" && job.current_stage !== stageFilter) return false;
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const text = `${job.job_title} ${job.department} ${job.job_id}`.toLowerCase();
+            if (!text.includes(query)) return false;
+        }
+        return true;
+    });
+
+    const exportCSV = () => {
+        if (!filteredJobs.length) return;
+        const headers = ["Job Title", "Department", "Stage", "Job ID"];
+        const rows = filteredJobs.map(job => [
+            job.job_title,
+            job.department,
+            stageLabels[job.current_stage] || job.current_stage,
+            job.job_id
+        ].map(cell => `"${String(cell || "").replace(/"/g, '""')}"`).join(","));
+
+        const csvContent = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `approvals.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
         <div className="fade-in">
@@ -187,207 +411,52 @@ export default function ApprovalsPage() {
                 </div>
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    {jobs.map((job) => {
-                        const rawState = details[job.job_id]?.state;
-                        const detail: WorkflowBlob =
-                            rawState && typeof rawState === "object" && !Array.isArray(rawState)
-                                ? (rawState as WorkflowBlob)
-                                : {};
-                        const jobDescription =
-                            typeof detail.job_description === "string" ? detail.job_description : "";
-                        const scoredCandidates = Array.isArray(detail.scored_candidates)
-                            ? detail.scored_candidates
-                            : [];
-                        const finalRecommendations = Array.isArray(detail.final_recommendations)
-                            ? detail.final_recommendations
-                            : [];
-                        const topAuditLog = auditLogEntriesFromUnknown(
-                            details[job.job_id]?.audit_log
-                        );
-
-                        return (
-                            <div key={job.job_id} className="glass-card fade-in" style={{ padding: 28 }}>
-                                {/* Header */}
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                                    <div>
-                                        <span className="badge badge-amber" style={{ marginBottom: 8, display: "inline-block" }}>
-                                            {stageLabels[job.current_stage] || job.current_stage}
-                                        </span>
-                                        <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: "8px 0 0" }}>
-                                            {job.job_title}
-                                        </h2>
-                                        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "4px 0 0" }}>
-                                            {job.department} • ID: {job.job_id}
-                                        </p>
-                                    </div>
-                                    <span className="pulse-active" style={{
-                                        display: "inline-block",
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: "50%",
-                                        background: "var(--accent-amber)",
-                                    }} />
-                                </div>
-
-                                {/* Content to Approve */}
-                                {job.current_stage === "jd_review" && jobDescription.length > 0 && (
-                                    <div style={{ marginBottom: 24 }}>
-                                        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
-                                            📝 Review & Refine JD
-                                        </h3>
-                                        <JDEditor 
-                                            initialValue={jobDescription} 
-                                            onChange={(val) => setEditedJDs(prev => ({ ...prev, [job.job_id]: val }))} 
-                                        />
-                                    </div>
-                                )}
-
-                                {job.current_stage === "shortlist_review" && scoredCandidates.length > 0 && (
-                                    <div style={{ marginBottom: 20 }}>
-                                        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
-                                            📊 Candidate Shortlist
-                                        </h3>
-                                        <table className="data-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Candidate</th>
-                                                    <th>Score</th>
-                                                    <th>Strengths</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {scoredCandidates.map((raw, i) => {
-                                                    const c = raw as Record<string, unknown>;
-                                                    const name = typeof c.candidate_name === "string" ? c.candidate_name : "";
-                                                    const score = Number(c.overall_score ?? 0);
-                                                    const strengths = Array.isArray(c.strengths)
-                                                        ? c.strengths.filter((s): s is string => typeof s === "string")
-                                                        : [];
-                                                    return (
-                                                    <tr key={i}>
-                                                        <td style={{ fontWeight: 600 }}>{name}</td>
-                                                        <td>
-                                                            <span style={{
-                                                                fontWeight: 700,
-                                                                color: score >= 80 ? "var(--accent-emerald)" : score >= 60 ? "var(--accent-amber)" : "var(--accent-rose)",
-                                                            }}>
-                                                                {Math.round(score)}/100
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                                                            {strengths.join(", ")}
-                                                        </td>
-                                                    </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {job.current_stage === "hire_review" && finalRecommendations.length > 0 && (
-                                    <div style={{ marginBottom: 20 }}>
-                                        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--accent-blue)", margin: "0 0 10px" }}>
-                                            ⚖️ Final Recommendations
-                                        </h3>
-                                        {finalRecommendations.map((raw, i) => {
-                                            const r = raw as Record<string, unknown>;
-                                            const name = typeof r.candidate_name === "string" ? r.candidate_name : "";
-                                            const reasoning = typeof r.reasoning === "string" ? r.reasoning : "";
-                                            const decision = typeof r.decision === "string" ? r.decision : "";
-                                            const confidence = Number(r.confidence ?? 0);
-                                            return (
-                                            <div key={i} style={{
-                                                padding: 16,
-                                                borderRadius: 10,
-                                                border: "1px solid var(--border-glass)",
-                                                marginBottom: 8,
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                alignItems: "center",
-                                            }}>
-                                                <div>
-                                                    <p style={{ fontWeight: 600, margin: 0 }}>{name}</p>
-                                                    <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "4px 0 0" }}>
-                                                        {reasoning.slice(0, 100)}...
-                                                    </p>
-                                                </div>
-                                                <span className={`badge ${decision === "hire" ? "badge-emerald" :
-                                                        decision === "maybe" ? "badge-amber" : "badge-rose"
-                                                    }`}>
-                                                    {decision.toUpperCase()} ({Math.round(confidence)}%)
-                                                </span>
-                                            </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                {/* Governance & ROI Section */}
-                                <div style={{ 
-                                    padding: 16, 
-                                    borderRadius: 12, 
-                                    background: "rgba(16, 185, 129, 0.05)", 
-                                    border: "1px dashed rgba(16, 185, 129, 0.3)",
-                                    marginBottom: 20 
-                                }}>
-                                    <h4 style={{ margin: "0 0 8px", fontSize: "0.75rem", fontWeight: 700, color: "var(--accent-emerald)", display: "flex", alignItems: "center", gap: 6 }}>
-                                        🛡️ Governance Audit Trail
-                                    </h4>
-                                    {topAuditLog
-                                        .filter((l) => l.action === "bias_audit")
-                                        .map((l, i) => (
-                                            <div key={i} style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", gap: 8 }}>
-                                                <span style={{ color: "var(--accent-emerald)" }}>•</span>
-                                                <span>{l.details}</span>
-                                            </div>
-                                        ))}
-                                    {!topAuditLog.some((l) => l.action === "bias_audit") && (
-                                        <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>
-                                            Waiting for agent compliance verification...
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Feedback + Actions */}
-                                <div>
-                                    <textarea
-                                        className="input"
-                                        placeholder="Add feedback (required for rejection)..."
-                                        value={feedback[job.job_id] || ""}
-                                        onChange={(e) => setFeedback((f) => ({ ...f, [job.job_id]: e.target.value }))}
-                                        style={{ marginBottom: 12, minHeight: 60 }}
-                                    />
-                                    <div style={{ display: "flex", gap: 12 }}>
-                                        <button
-                                            className="btn-success"
-                                            onClick={() => handleApprove(job.job_id)}
-                                            disabled={actionLoading === job.job_id}
-                                        >
-                                            {actionLoading === job.job_id ? "Processing..." : "✅ Approve & Continue"}
-                                        </button>
-                                        <button
-                                            className="btn-danger"
-                                            onClick={() => handleReject(job.job_id)}
-                                            disabled={actionLoading === job.job_id}
-                                        >
-                                            ✕ Reject & Revise
-                                        </button>
-                                        <button
-                                            className="btn-outline"
-                                            onClick={() => handleDelete(job.job_id)}
-                                            disabled={actionLoading === job.job_id}
-                                            title="Delete this pipeline"
-                                        >
-                                            🗑️ Delete Pipeline
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
+                        <div></div>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <input 
+                                type="text"
+                                className="input"
+                                placeholder="Search pipelines..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                style={{ width: 200, padding: "6px 12px", fontSize: "0.85rem" }}
+                            />
+                            <select 
+                                className="input"
+                                value={stageFilter}
+                                onChange={e => setStageFilter(e.target.value)}
+                                style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+                            >
+                                <option value="All">All Stages</option>
+                                {Array.from(new Set(jobs.map(j => j.current_stage))).map(s => (
+                                    <option key={s} value={s}>{stageLabels[s] || s}</option>
+                                ))}
+                            </select>
+                            <button onClick={exportCSV} className="btn-secondary" style={{ padding: "6px 12px", fontSize: "0.85rem", cursor: "pointer", background: "rgba(255,255,255,0.1)", border: "1px solid var(--border-glass)", color: "white", borderRadius: "8px" }}>
+                                ⬇ Export CSV
+                            </button>
+                        </div>
+                    </div>
+                    {filteredJobs.length === 0 && (
+                        <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+                            No pending approvals match your filters.
+                        </div>
+                    )}
+                    {filteredJobs.map((job) => (
+                        <JobApprovalCard 
+                            key={job.job_id} 
+                            job={job} 
+                            initialDetail={details[job.job_id]} 
+                            onApprove={handleApprove} 
+                            onReject={handleReject} 
+                            onDelete={handleDelete} 
+                            actionLoading={actionLoading} 
+                        />
+                    ))}
                 </div>
             )}
         </div>
     );
 }
+

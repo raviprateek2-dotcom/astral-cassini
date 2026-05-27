@@ -75,14 +75,26 @@ export function useWebSocket(jobId: string | null) {
             };
 
             s.onopen = () => {
+                const isReconnect = backoffMs > WS_BACKOFF_START_MS;
                 backoffMs = WS_BACKOFF_START_MS;
                 setConnected(true);
                 clearPing();
                 pingInterval = setInterval(() => {
-                    if (socket?.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({ type: "ping" }));
+                    try {
+                        if (socket?.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ type: "ping" }));
+                        }
+                    } catch (err) {
+                        console.error("Failed to send WS ping", err);
                     }
                 }, WS_PING_MS);
+                
+                // If this is a reconnection, fetch full state to catch any missed events
+                if (isReconnect && jobId) {
+                    useJobStore.getState().fetchJobDetails(jobId).catch(err => {
+                        console.error("Failed to sync state after reconnect", err);
+                    });
+                }
             };
 
             s.onerror = () => setConnected(false);

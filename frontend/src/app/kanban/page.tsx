@@ -112,6 +112,8 @@ export default function KanbanPage() {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const { connected, events, heartbeat } = useWebSocket(activeJobId);
 
+    const [searchQuery, setSearchQuery] = useState("");
+
     // Upload Modal State
     const [uploadingJob, setUploadingJob] = useState<Job | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -133,6 +135,13 @@ export default function KanbanPage() {
         const interval = setInterval(loadJobs, 15000); // refresh every 15s
         return () => clearInterval(interval);
     }, [loadJobs]);
+
+    // Update in real-time via WebSocket events
+    useEffect(() => {
+        if (events.length > 0) {
+            loadJobs();
+        }
+    }, [events, loadJobs]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -161,10 +170,35 @@ export default function KanbanPage() {
         });
     };
 
+    const handleExportCSV = () => {
+        const header = ["Job ID", "Title", "Department", "Stage", "Candidates", "Created At"];
+        const rows = jobs.map(j => [
+            j.job_id,
+            j.job_title,
+            j.department,
+            j.current_stage,
+            j.candidates_count?.toString() || "0",
+            j.created_at ? new Date(j.created_at).toISOString() : ""
+        ]);
+        const csvContent = [header, ...rows].map(e => e.map(item => `"${(item || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `pipeline_export_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+    };
+
+    // Filter jobs by search
+    const filteredJobs = jobs.filter(job => 
+        job.job_title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        job.department.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     // Group jobs by current_stage
     const boardMap: Record<string, Job[]> = {};
     for (const stage of STAGES) boardMap[stage.key] = [];
-    for (const job of jobs) {
+    for (const job of filteredJobs) {
         const key = job.current_stage || "intake";
         if (!boardMap[key]) boardMap[key] = [];
         boardMap[key].push(job);
@@ -186,6 +220,17 @@ export default function KanbanPage() {
                     </p>
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <input 
+                        type="text" 
+                        placeholder="Quick Search..." 
+                        className="input" 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        style={{ maxWidth: 200, fontSize: "0.8rem", padding: "8px 12px" }}
+                    />
+                    <button className="btn-outline" onClick={handleExportCSV} style={{ fontSize: "0.8rem", padding: "8px 16px" }}>
+                        Export Board
+                    </button>
                     <span
                         style={{
                             fontSize: "0.8rem",

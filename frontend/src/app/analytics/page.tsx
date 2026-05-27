@@ -6,6 +6,7 @@ import {
     AreaChart, Area, Cell
 } from "recharts";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#f43f5e", "#8b5cf6"];
 
@@ -40,6 +41,23 @@ export default function AnalyticsDashboard() {
     const [recent, setRecent] = useState<{ timestamp: string; agent: string; action: string; details: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
+    const { events } = useWebSocket(activeJobId);
+
+    useEffect(() => {
+        if (events.length > 0) {
+            setRefreshTrigger(prev => prev + 1);
+        }
+    }, [events]);
+
+    useEffect(() => {
+        api.listJobs().then(data => {
+            if (data.length > 0) setActiveJobId(data[0].job_id);
+        }).catch(() => {});
+    }, []);
 
     const downloadReport = () => {
         const timestamp = new Date().toLocaleString();
@@ -80,6 +98,23 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
         a.click();
     };
 
+    const handleExportCSV = () => {
+        const header = ["Department", "Total Jobs", "Hires", "Avg Time To Hire"];
+        const filteredDept = deptData.filter(d => d.department.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        const rows = filteredDept.map(d => {
+            const time = timeData.find(t => t.department === d.department)?.avg_days || 0;
+            return [d.department, d.total_jobs.toString(), d.hires.toString(), time.toString()];
+        });
+        const csvContent = [header, ...rows].map(e => e.map(item => `"${(item || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `analytics_metrics_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+    };
+
     useEffect(() => {
         async function loadData() {
             try {
@@ -109,7 +144,7 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
             }
         }
         loadData();
-    }, []);
+    }, [refreshTrigger]);
 
     const handleRetry = () => {
         setLoading(true);
@@ -126,12 +161,28 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                     <h1 style={{ fontSize: "2.5rem", fontWeight: 800, margin: 0, letterSpacing: "-0.03em" }}>Intelligence Analytics</h1>
                     <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>Deep insights from your autonomous recruitment ecosystem</p>
                 </div>
-                <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <input 
+                        type="text" 
+                        placeholder="Filter Departments..." 
+                        className="input" 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        style={{ maxWidth: 200, fontSize: "0.85rem", padding: "10px 12px" }}
+                    />
                     {fetchError && (
                         <button className="btn-danger" onClick={handleRetry} style={{ padding: "10px 24px", fontSize: "0.85rem" }}>
                             🔄 Reconnect Stream
                         </button>
                     )}
+                    <button 
+                        className="btn-outline" 
+                        onClick={handleExportCSV}
+                        disabled={!!fetchError}
+                        style={{ padding: "10px 24px", fontSize: "0.85rem", gap: "8px", display: "flex", alignItems: "center", opacity: fetchError ? 0.5 : 1 }}
+                    >
+                        Export CSV
+                    </button>
                     <button 
                         className="btn-outline" 
                         onClick={downloadReport}
@@ -245,7 +296,7 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                     <h3 style={{ margin: "0 0 24px", fontSize: "1.1rem", fontWeight: 700 }}>Avg Time To Hire (Days)</h3>
                     <div style={{ flex: 1, width: "100%" }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={timeData} margin={{ bottom: 20 }}>
+                            <BarChart data={timeData.filter(d => d.department.toLowerCase().includes(searchQuery.toLowerCase()))} margin={{ bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                 <XAxis dataKey="department" stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
                                 <YAxis stroke="rgba(255,255,255,0.2)" fontSize={12} tickLine={false} axisLine={false} />
@@ -266,7 +317,7 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                     <h3 style={{ margin: "0 0 24px", fontSize: "1.1rem", fontWeight: 700 }}>Regional Department Impact</h3>
                     <div style={{ flex: 1, width: "100%" }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={deptData}>
+                            <AreaChart data={deptData.filter(d => d.department.toLowerCase().includes(searchQuery.toLowerCase()))}>
                                 <defs>
                                     <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="var(--accent-purple)" stopOpacity={0.3} />

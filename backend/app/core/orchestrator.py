@@ -180,6 +180,15 @@ class Orchestrator:
             except Exception as e:
                 logger.error(f"Execution failed at {current_stage}: {str(e)}", exc_info=True)
                 self.state.error = str(e)
+                
+                # Push exception to audit log so it surfaces in the UI
+                self.state.log_audit(
+                    agent="Orchestrator",
+                    action="pipeline_error",
+                    details=f'{{"error": "{str(e).replace('"', ' ')}"}}',
+                    stage=current_stage
+                )
+                
                 self._save_state()
                 break
 
@@ -228,10 +237,29 @@ class Orchestrator:
                     stage=entry.stage
                 ))
                 
-        self.db.commit()
+        # Retry mechanism for SQLite DB Locks
+        import time
+        from sqlalchemy.exc import OperationalError
+        
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                self.db.commit()
+                break
+            except OperationalError as e:
+                if "locked" in str(e).lower():
+                    self.db.rollback()
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Database locked, retrying commit ({attempt + 1}/{max_retries})...")
+                        time.sleep(0.5)
+                    else:
+                        logger.error("Failed to commit orchestrator state after multiple retries due to DB lock.")
+                        raise
+                else:
+                    raise
+                    
         try:
             from app.api.websocket import schedule_pipeline_snapshot
-
             schedule_pipeline_snapshot(self.job_id)
         except Exception:
             logger.debug("WebSocket notify skipped for job %s", self.job_id, exc_info=True)
@@ -294,6 +322,14 @@ async def start_workflow(
     }
 
 
+def _log_task_exception(task: asyncio.Task) -> None:
+    try:
+        exc = task.exception()
+        if exc:
+            logger.error(f"Background task failed with unhandled exception: {exc}", exc_info=exc)
+    except asyncio.CancelledError:
+        pass
+
 async def start_orchestration(job_id: str) -> bool:
     """Launch orchestration in background for ``job_id``.
 
@@ -310,7 +346,8 @@ async def start_orchestration(job_id: str) -> bool:
             )
             return False
         _running_jobs.add(job_id)
-    asyncio.create_task(_run_orchestration_task(job_id))
+    task = asyncio.create_task(_run_orchestration_task(job_id))
+    task.add_done_callback(_log_task_exception)
     return True
 
 
@@ -336,7 +373,8 @@ async def _run_orchestration_task(job_id: str):
                 _pending_orch_rerun.discard(job_id)
                 pending = True
         if pending:
-            asyncio.create_task(start_orchestration(job_id))
+            follow_task = asyncio.create_task(start_orchestration(job_id))
+            follow_task.add_done_callback(_log_task_exception)
 
 
 async def resume_workflow(
