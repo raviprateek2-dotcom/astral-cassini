@@ -20,6 +20,7 @@ export default function DashboardPage() {
     loading,
     refreshing,
     refetch,
+    silentRefetch,
     health,
     analytics,
     scoreDistribution,
@@ -39,9 +40,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (events.length > 0) {
-      refetch();
+      silentRefetch();
     }
-  }, [events, refetch]);
+  }, [events, silentRefetch]);
 
   const filteredJobs = jobs.filter(job => 
     job.job_title.toLowerCase().includes(searchQuery.toLowerCase()) || 

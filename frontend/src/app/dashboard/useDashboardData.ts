@@ -93,11 +93,15 @@ export function useDashboardData() {
     [jobs],
   );
 
+  const refetch = useCallback(() => loadData("manual"), [loadData]);
+  const silentRefetch = useCallback(() => loadData("silent"), [loadData]);
+
   return {
     jobs,
     loading,
     refreshing,
-    refetch: () => loadData("manual"),
+    refetch,
+    silentRefetch,
     health,
     analytics,
     scoreDistribution,
