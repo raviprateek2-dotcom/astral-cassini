@@ -44,6 +44,9 @@ export default function AnalyticsDashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     const { events } = useWebSocket(activeJobId);
 
@@ -271,7 +274,8 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                 {/* Funnel Chart */}
                 <div className="glass-card" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
                     <h3 style={{ margin: "0 0 24px", fontSize: "1.1rem", fontWeight: 700 }}>Hiring Funnel</h3>
-                    <div style={{ flex: 1, width: "100%" }}>
+                    <div style={{ flex: 1, width: "100%", minHeight: 0 }}>
+                        {mounted ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={funnel} layout="vertical" margin={{ left: 40, right: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
@@ -288,13 +292,15 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
+                        ) : <div style={{ height: "100%", background: "rgba(255,255,255,0.03)", borderRadius: 8 }} />}
                     </div>
                 </div>
 
                 {/* Time to Hire */}
                 <div className="glass-card" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
                     <h3 style={{ margin: "0 0 24px", fontSize: "1.1rem", fontWeight: 700 }}>Avg Time To Hire (Days)</h3>
-                    <div style={{ flex: 1, width: "100%" }}>
+                    <div style={{ flex: 1, width: "100%", minHeight: 0 }}>
+                        {mounted ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={timeData.filter(d => d.department.toLowerCase().includes(searchQuery.toLowerCase()))} margin={{ bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -307,6 +313,7 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                                 <Bar dataKey="avg_days" fill="var(--accent-amber)" radius={[6, 6, 0, 0]} barSize={48} animationDuration={2000} fillOpacity={0.7} />
                             </BarChart>
                         </ResponsiveContainer>
+                        ) : <div style={{ height: "100%", background: "rgba(255,255,255,0.03)", borderRadius: 8 }} />}
                     </div>
                 </div>
             </div>
@@ -315,7 +322,8 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                 {/* Department Breakdown */}
                 <div className="glass-card" style={{ padding: 24, display: "flex", flexDirection: "column" }}>
                     <h3 style={{ margin: "0 0 24px", fontSize: "1.1rem", fontWeight: 700 }}>Regional Department Impact</h3>
-                    <div style={{ flex: 1, width: "100%" }}>
+                    <div style={{ flex: 1, width: "100%", minHeight: 0 }}>
+                        {mounted ? (
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={deptData.filter(d => d.department.toLowerCase().includes(searchQuery.toLowerCase()))}>
                                 <defs>
@@ -337,6 +345,7 @@ ${recent.filter(r => r.action === "bias_audit").map(r => `* [${new Date(r.timest
                                 <Area type="monotone" dataKey="hires" name="Successful Placements" stroke="var(--accent-emerald)" strokeWidth={2} fill="url(#colorHires)" />
                             </AreaChart>
                         </ResponsiveContainer>
+                        ) : <div style={{ height: "100%", background: "rgba(255,255,255,0.03)", borderRadius: 8 }} />}
                     </div>
                 </div>
 

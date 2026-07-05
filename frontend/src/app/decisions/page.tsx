@@ -28,7 +28,7 @@ export default function DecisionsPage() {
             const data = await api.getRecommendations(jobId);
             setRecs(data.final_recommendations || []);
             setTraces(data.decision_traces || []);
-        } catch {
+        } catch (_) {
             setRecs([]);
             setTraces([]);
         }
@@ -38,8 +38,8 @@ export default function DecisionsPage() {
     const mergedRecs = useMemo(() => {
         const list = [...recs];
         if (heartbeat?.state) {
-            const hState = heartbeat.state as any;
-            if (hState.final_recommendations) list.push(...hState.final_recommendations);
+            const hState = heartbeat.state as { final_recommendations?: unknown[]; decision_traces?: unknown[] };
+            if (hState.final_recommendations) list.push(...hState.final_recommendations as typeof recs);
         }
         return Array.from(new Map(list.map((r, index) => [r.candidate_id || `temp-${index}`, r])).values());
     }, [recs, heartbeat]);
@@ -47,8 +47,8 @@ export default function DecisionsPage() {
     const mergedTraces = useMemo(() => {
         const list = [...traces];
         if (heartbeat?.state) {
-            const hState = heartbeat.state as any;
-            if (hState.decision_traces) list.push(...hState.decision_traces);
+            const hState2 = heartbeat.state as { final_recommendations?: unknown[]; decision_traces?: unknown[] };
+            if (hState2.decision_traces) list.push(...hState2.decision_traces as typeof traces);
         }
         return Array.from(new Map(list.map((t, index) => [t.candidate_id || `temp-${index}`, t])).values());
     }, [traces, heartbeat]);

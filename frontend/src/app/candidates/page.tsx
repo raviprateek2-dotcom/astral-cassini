@@ -60,10 +60,10 @@ export default function CandidatesPage() {
     const mergedCandidates = useMemo(() => {
         const list = [...candidates];
         if (heartbeat?.state) {
-            const hState = heartbeat.state as any;
-            if (hState.candidates) list.push(...hState.candidates);
-            if (hState.scored_candidates) list.push(...hState.scored_candidates);
-            if (hState.final_recommendations) list.push(...hState.final_recommendations);
+            const hState = heartbeat.state as { candidates?: unknown[]; scored_candidates?: unknown[]; final_recommendations?: unknown[] };
+            if (hState.candidates) list.push(...hState.candidates as typeof candidates);
+            if (hState.scored_candidates) list.push(...hState.scored_candidates as typeof candidates);
+            if (hState.final_recommendations) list.push(...hState.final_recommendations as typeof candidates);
         }
         const unique = Array.from(new Map(list.map(c => [c.candidate_id || c.id, c])).values());
         return unique;

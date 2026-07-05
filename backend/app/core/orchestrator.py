@@ -511,7 +511,7 @@ def _job_to_summary(j: Job) -> dict:
         "department": j.department,
         "current_stage": j.current_stage,
         "created_at": j.created_at.isoformat(),
-        "candidates_count": len(state.get("candidates", []) or []),
+        "candidates_count": len(j.scores) if getattr(j, "scores", None) is not None else len(state.get("candidates", []) or []),
     }
 
 
