@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { MeResponse } from "@/lib/api";
@@ -15,6 +15,16 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [terminalLines, setTerminalLines] = useState<string[]>([]);
+    const [currentTime, setCurrentTime] = useState("");
+
+    useEffect(() => {
+        // Only set time on the client to avoid SSR hydration mismatch
+        setCurrentTime(new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        const timer = setInterval(() => {
+            setCurrentTime(new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     const addTerminalLine = (line: string, delay: number) => {
         return new Promise(resolve => {
@@ -238,7 +248,7 @@ export default function LoginPage() {
                         <div className="fade-in login-terminal">
                             {terminalLines.map((line, i) => (
                                 <div key={i} style={{ marginBottom: 10, lineHeight: 1.4 }}>
-                                    <span style={{ color: "rgba(255,255,255,0.3)", marginRight: 8 }}>[{new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span>
+                                    <span style={{ color: "rgba(255,255,255,0.3)", marginRight: 8 }}>{currentTime ? `[${currentTime}]` : ""}</span>
                                     {line}
                                 </div>
                             ))}

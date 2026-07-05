@@ -42,7 +42,7 @@ export default function RootLayout({
         <title>PRO HR — Autonomous Recruitment Ecosystem</title>
         <meta name="description" content="Multi-agent recruitment platform with a deterministic orchestrator, human-in-the-loop gates, and FAISS-backed semantic resume search." />
       </head>
-      <body className={inter.className} style={{ position: "relative", overflowX: "hidden", minHeight: "100vh", backgroundColor: "#0f172a" }}>
+      <body suppressHydrationWarning className={inter.className} style={{ position: "relative", overflowX: "hidden", minHeight: "100vh", backgroundColor: "#0f172a" }}>
         
         {/* Premium Background */}
         <div className="premium-bg-overlay animate-float" style={{ opacity: 0.6 }} />
